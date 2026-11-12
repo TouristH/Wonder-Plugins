@@ -1,0 +1,20 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only; additional terms: see ADDITIONAL_TERMS.md. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DebugType>none</DebugType>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Wonder.Extensibility.Contracts">
+      <HintPath>$(WonderContractsPath)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <Target Name="RequireWonderContracts" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(WonderContractsPath)')"
+           Text="Set WonderContractsPath to the Wonder.Extensibility.Contracts.dll built from Wonder Launcher." />
+  </Target>
+</Project>

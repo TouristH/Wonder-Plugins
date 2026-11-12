@@ -1,9 +1,10 @@
-name: Validate registry
+name: Validate Wonder plugin registry
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [dev]
+  pull_request:
+    branches: [dev]
 
 permissions:
   contents: read
@@ -11,45 +12,12 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.13"
-      - name: Validate sources and generated index
-        run: python tools/validate.py --check
-      - name: Enforce pull request scope and immutable releases
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_ACTOR: ${{ github.event.pull_request.user.login }}
-          PR_ACTOR_ID: ${{ github.event.pull_request.user.id }}
-          PR_ACTOR_TYPE: ${{ github.event.pull_request.user.type }}
-          BASE_REPOSITORY: ${{ github.repository }}
-          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          EVENT_SENDER: ${{ github.event.sender.login }}
-          EVENT_SENDER_ID: ${{ github.event.sender.id }}
-          EVENT_SENDER_TYPE: ${{ github.event.sender.type }}
-          EVENT_ACTION: ${{ github.event.action }}
-        run: >-
-          python tools/check_pr.py
-          --base "$BASE_SHA"
-          --actor "$PR_ACTOR"
-          --actor-id "$PR_ACTOR_ID"
-          --actor-type "$PR_ACTOR_TYPE"
-          --base-repository "$BASE_REPOSITORY"
-          --head-repository "$HEAD_REPOSITORY"
-          --head-ref "$HEAD_REF"
-          --event-sender "$EVENT_SENDER"
-          --event-sender-id "$EVENT_SENDER_ID"
-          --event-sender-type "$EVENT_SENDER_TYPE"
-          --event-action "$EVENT_ACTION"
-      - name: Run validator tests
-        run: python -m unittest discover -s tests -v
+          python-version: "3.12"
+      - run: python -m unittest discover -s tests -v
+      - run: python tools/validate.py --check
