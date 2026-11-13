@@ -1,0 +1,35 @@
+name: 收录 Wonder 插件
+description: 机器人自动校验公开仓库与发布包；技术收录不代表人工验证。
+title: '[Plugin] '
+labels: ['plugin-submission']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        作者仓库根部须有 _manifest.json，固定 Release ZIP 内须有 plugin.json、入口 DLL、LICENSE、RISK.md 和工具生成的 permissions.json。
+        机器人重新分析并核对报告，检查通过后自动提出收录 PR，不要求维护者先批准。
+        所有已收录版本均可下载；维护者完成检查后可在本 Issue 用 /verify 验证具体版本与哈希。
+  - type: input
+    id: repository
+    attributes:
+      label: 插件仓库 / Repository
+      description: 作者的公开、非 Fork、未归档 GitHub 仓库。
+      placeholder: https://github.com/example/Wonder.Toolbox
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: 插件介绍 / Description
+      description: 简述功能及构建说明的位置；权限报告由工具生成，作者说明仅作补充。
+    validations:
+      required: true
+  - type: checkboxes
+    id: package
+    attributes:
+      label: 发布确认 / Publication
+      options:
+        - label: 已发布固定版本 ZIP、必要文件和与实际内容一致的自动分析报告。
+          required: true
+        - label: 理解技术收录和人工验证都不是安全保证，插件以当前系统用户权限运行。
+          required: true

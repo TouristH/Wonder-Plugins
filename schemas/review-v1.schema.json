@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wonder artifact review history",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "generation", "version", "sha256", "events"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "id": {"$ref": "plugin-v1.schema.json#/properties/id"},
+    "generation": {"type": "integer", "minimum": 1},
+    "version": {"$ref": "plugin-v1.schema.json#/properties/version"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "events": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["commentId", "issueNumber", "reviewer", "reviewerId", "status", "createdAt", "note"],
+        "properties": {
+          "commentId": {"type": "integer", "minimum": 1},
+          "issueNumber": {"type": "integer", "minimum": 1},
+          "reviewer": {"type": "string", "minLength": 1, "maxLength": 39},
+          "reviewerId": {"type": "integer", "minimum": 1},
+          "status": {"enum": ["verified", "revoked"]},
+          "createdAt": {"type": "string", "format": "date-time"},
+          "note": {"type": "string", "maxLength": 4096}
+        }
+      }
+    }
+  }
+}

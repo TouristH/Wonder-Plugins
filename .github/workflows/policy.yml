@@ -1,0 +1,31 @@
+name: Enforce trusted registry policy
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - name: Checkout exact trusted base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: registry
+          fetch-depth: 0
+          persist-credentials: false
+      - id: tools
+        uses: ./registry/.github/actions/setup-registry
+      - name: Replay facts using base-owned policy without executing candidate code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
+        run: dotnet "$REGISTRY_CLI" policy "$GITHUB_EVENT_PATH"

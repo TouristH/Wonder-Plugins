@@ -1,6 +1,10 @@
 # 安全问题
 
-请通过 [GitHub 私密安全报告](https://github.com/TouristH/UNuse/security/advisories/new)提供插件 ID、版本、
+请通过 [GitHub 私密安全报告](https://github.com/TouristH/Wonder-Plugins/security/advisories/new)提供插件 ID、版本、
 SHA-256 和复现信息。提交材料前移除访问令牌、账号数据及其他个人信息。
 
 Wonder 插件以当前系统用户身份在启动器进程中执行。SHA-256 用于核对下载字节与索引是否一致。
+
+权限报告来自静态扫描，不能覆盖全部运行时行为。仓库复算报告以核对发布材料；人工验证记录维护者对具体版本的检查。两者都不保证安全。客户端加载前提示风险，用户整体同意后运行，不提供逐项权限限制或沙箱。
+
+发现已验证版本有问题时，维护者应在对应 Issue 执行带精确版本与哈希的 `/revoke-review` 并说明原因。撤销保留历史与下载信息。

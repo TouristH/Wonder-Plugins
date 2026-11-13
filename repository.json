@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "name": "Wonder Plugins",
+  "sourceUrl": "https://github.com/TouristH/Wonder-Plugins",
+  "launcherUrl": "https://github.com/TouristH/Wonder-Launcher",
+  "indexPath": "public/v1/index.json",
+  "registryBotLogin": "wonder-registry-bot[bot]",
+  "registryBotId": 319601349,
+  "trustedReviewers": ["TouristH"],
+  "trustedReviewerIds": { "TouristH": 143396778 }
+}

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Wonder.PluginRegistry/Wonder.PluginRegistry.csproj" />
+  <Project Path="tests/Wonder.PluginRegistry.Tests/Wonder.PluginRegistry.Tests.csproj" />
+</Solution>

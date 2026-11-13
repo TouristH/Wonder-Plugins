@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Wonder Launcher 使用问题
+    url: https://github.com/TouristH/Wonder-Launcher/issues
+    about: 启动器运行和插件管理窗口问题请在主项目反馈。

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "id": {
+      "$ref": "plugin-v1.schema.json#/properties/id"
+    },
+    "releases": {
+      "minItems": 1,
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "author",
+          "version",
+          "apiVersion",
+          "downloadUrl",
+          "sha256",
+          "size"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "plugin-v1.schema.json#/properties/name"
+          },
+          "description": {
+            "$ref": "plugin-v1.schema.json#/properties/description"
+          },
+          "author": {
+            "$ref": "plugin-v1.schema.json#/properties/author"
+          },
+          "version": {
+            "$ref": "plugin-v1.schema.json#/properties/version"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 67108864
+          },
+          "permissions": {
+            "$ref": "plugin-v1.schema.json#/properties/permissions"
+          }
+        }
+      }
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "title": "Wonder publisher manifest v1",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "releases"
+  ]
+}

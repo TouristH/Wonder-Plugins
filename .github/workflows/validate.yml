@@ -1,23 +1,28 @@
-name: Validate Wonder plugin registry
-
+name: Validate registry
 on:
-  push:
-    branches: [dev]
   pull_request:
-    branches: [dev]
-
+    branches: [main]
+  push:
+    branches: [main]
 permissions:
   contents: read
-
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: registry
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          path: registry
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-      - run: python -m unittest discover -s tests -v
-      - run: python tools/validate.py --check
+      - id: tools
+        uses: ./registry/.github/actions/setup-registry
+      - name: Run regression tests
+        run: dotnet test Wonder.PluginRegistry.slnx -c Release --no-build --no-restore --nologo -p:WonderExtensibilityProject="$GITHUB_WORKSPACE/wonder-sdk/src/Wonder.Extensibility/Wonder.Extensibility.csproj"
+      - name: Check packages, reports and generated index
+        env:
+          REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
+        run: dotnet "$REGISTRY_CLI" validate

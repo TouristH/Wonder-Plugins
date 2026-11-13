@@ -1,0 +1,24 @@
+name: Build Wonder registry tools
+description: Build the C# CLI using the fixed shared Wonder analyzer source.
+outputs:
+  cli:
+    description: Absolute CLI assembly path.
+    value: ${{ steps.build.outputs.cli }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: TouristH/Wonder-Launcher
+        ref: fef762609eb761476dc95a0dcceb00d2223d1bde
+        path: wonder-sdk
+        persist-credentials: false
+    - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+      with:
+        dotnet-version: '10.0.x'
+    - id: build
+      shell: bash
+      working-directory: registry
+      run: |
+        dotnet build Wonder.PluginRegistry.slnx -c Release --nologo -p:WonderExtensibilityProject="$GITHUB_WORKSPACE/wonder-sdk/src/Wonder.Extensibility/Wonder.Extensibility.csproj"
+        echo "cli=$GITHUB_WORKSPACE/registry/src/Wonder.PluginRegistry/bin/Release/net10.0/Wonder.PluginRegistry.dll" >> "$GITHUB_OUTPUT"

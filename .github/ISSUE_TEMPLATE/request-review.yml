@@ -1,0 +1,38 @@
+name: 请求人工验证
+description: 请维护者检查已收录的版本；也可直接在原收录 Issue 中验证。
+title: '[Review] '
+labels: ['review-request']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        人工验证针对指定版本和 ZIP 哈希，其他版本不会继承。未验证或已撤销的版本仍可下载。
+        只有配置中的可信维护者在 Issue 新增指令评论，才会产生验证记录。
+  - type: input
+    id: plugin
+    attributes:
+      label: 插件 ID / Plugin ID
+      placeholder: io.github.example.toolbox
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本 / Version
+      placeholder: '1.0.0'
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: 对应源码提交 / Source commit
+      description: 与此 ZIP 对应的固定 GitHub commit URL。
+    validations:
+      required: true
+  - type: textarea
+    id: build
+    attributes:
+      label: 构建与行为说明 / Build and behavior notes
+      description: 构建命令、依赖与实际行为；不代替自动报告。
+    validations:
+      required: true

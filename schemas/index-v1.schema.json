@@ -3,27 +3,107 @@
   "title": "Wonder plugin catalog v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "product", "plugins"],
+  "required": [
+    "schemaVersion",
+    "product",
+    "plugins"
+  ],
   "properties": {
-    "schemaVersion": {"const": 1},
-    "product": {"const": "wonder"},
+    "schemaVersion": {
+      "const": 1
+    },
+    "product": {
+      "const": "wonder"
+    },
     "plugins": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "name", "description", "author", "version", "apiVersion", "downloadUrl", "sha256", "size", "sourceUrl"],
+        "required": [
+          "id",
+          "name",
+          "description",
+          "author",
+          "version",
+          "apiVersion",
+          "downloadUrl",
+          "sha256",
+          "size",
+          "sourceUrl"
+        ],
         "properties": {
-          "id": {"$ref": "plugin-v1.schema.json#/properties/id"},
-          "name": {"$ref": "plugin-v1.schema.json#/properties/name"},
-          "description": {"$ref": "plugin-v1.schema.json#/properties/description"},
-          "author": {"$ref": "plugin-v1.schema.json#/properties/author"},
-          "version": {"$ref": "plugin-v1.schema.json#/properties/version"},
-          "apiVersion": {"const": 1},
-          "downloadUrl": {"type": "string", "format": "uri", "pattern": "^https://"},
-          "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
-          "size": {"type": "integer", "minimum": 1, "maximum": 67108864},
-          "sourceUrl": {"type": "string", "format": "uri", "pattern": "^https://"}
+          "id": {
+            "$ref": "plugin-v1.schema.json#/properties/id"
+          },
+          "name": {
+            "$ref": "plugin-v1.schema.json#/properties/name"
+          },
+          "description": {
+            "$ref": "plugin-v1.schema.json#/properties/description"
+          },
+          "author": {
+            "$ref": "plugin-v1.schema.json#/properties/author"
+          },
+          "version": {
+            "$ref": "plugin-v1.schema.json#/properties/version"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "downloadUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 67108864
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "permissions": {
+            "$ref": "plugin-v1.schema.json#/properties/permissions"
+          },
+          "review": {
+            "required": [
+              "status",
+              "reviewer",
+              "reviewedAt",
+              "sha256"
+            ],
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reviewedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "verified",
+                  "revoked"
+                ]
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "reviewer": {
+                "minLength": 1,
+                "type": "string",
+                "maxLength": 256
+              }
+            }
+          }
         }
       }
     }
