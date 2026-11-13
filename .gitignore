@@ -5,3 +5,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 approval-summary.md
+bin/
+obj/
+artifacts/
+.registry-operation.json
+.sdk/
+docs/migration-status.md

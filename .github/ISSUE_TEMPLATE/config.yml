@@ -1,11 +1,5 @@
-blank_issues_enabled: false
+blank_issues_enabled: true
 contact_links:
-  - name: UNuse 已停止维护
-    url: https://github.com/TouristH/UNuse
-    about: 废弃在线仓库；不再接收新插件、审核或生命周期请求
-  - name: 历史贡献说明
-    url: https://github.com/TouristH/UNuse/blob/main/CONTRIBUTING.md
-    about: 仅供查阅原有打包、收录和安全边界
-  - name: 私密安全报告
-    url: https://github.com/TouristH/UNuse/security/advisories/new
-    about: 请勿公开披露可利用漏洞或恶意插件细节
+  - name: Wonder Launcher 使用问题
+    url: https://github.com/TouristH/Wonder-Launcher/issues
+    about: 启动器运行和插件管理窗口问题请在主项目反馈。

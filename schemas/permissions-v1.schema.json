@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "findings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "files": {
+      "items": {
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      },
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "analyzerVersion": {
+      "const": "1.0.0"
+    },
+    "schemaVersion": {
+      "const": 1
+    }
+  },
+  "title": "Wonder generated permission report v1",
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "analyzerVersion",
+    "files",
+    "findings",
+    "limitations"
+  ]
+}

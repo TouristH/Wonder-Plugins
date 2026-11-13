@@ -1,16 +1,9 @@
-## 变更类型
+## 变更
 
-- [ ] 仓库工具、Schema、工作流或文档
-- [ ] 可信审核者添加或撤销 `reviews/` 记录
-- [ ] 维护者执行安全撤回
+说明修改的行为及原因。
 
-普通插件首次收录请使用 **Add Plugin Issue**；后续版本由作者仓库 `_manifest.json` 自动同步，
-不要手工编辑 `plugins/<id>/releases/` 或生成索引。
+## 验证
 
-## 检查
+列出执行过的构建、测试或校验命令及结果。
 
-- [ ] 改动范围与标题一致，没有提交 ZIP、DLL、构建目录或密钥。
-- [ ] 我已运行 `python tools/validate.py --check`。
-- [ ] 我已运行 `python -m unittest discover -s tests -v`。
-- [ ] 若修改审核记录，`reviewer` 是我的 GitHub 登录名，且 ID、版本、SHA-256 完全匹配。
-- [ ] 若撤回版本，只修改 `yanked` 与非空 `yankReason`，没有改写历史下载或哈希。
+插件发布请使用收录 Issue 或 wonder-plugin Topic。发布事实、版本历史与人工验证记录由机器人生成，不能通过普通 PR 手工伪造。

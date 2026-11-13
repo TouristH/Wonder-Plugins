@@ -1,0 +1,73 @@
+name: Collect and review Wonder plugins
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+  issues:
+    types: [opened, reopened]
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+concurrency:
+  group: registry-write
+  cancel-in-progress: false
+jobs:
+  registry:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'issues' && !github.event.issue.pull_request &&
+        (startsWith(github.event.issue.title, '[Plugin]') || startsWith(github.event.issue.title, '[Review]'))) ||
+       (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
+        (startsWith(github.event.comment.body, '/verify ') || startsWith(github.event.comment.body, '/revoke-review '))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: registry
+          persist-credentials: false
+      - id: tools
+        uses: ./registry/.github/actions/setup-registry
+      - name: Validate request and prepare data changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          case "$EVENT_NAME" in
+            schedule|workflow_dispatch) dotnet "$REGISTRY_CLI" sync ;;
+            issues) dotnet "$REGISTRY_CLI" issue "$GITHUB_EVENT_PATH" ;;
+            issue_comment) dotnet "$REGISTRY_CLI" review "$GITHUB_EVENT_PATH" ;;
+            *) exit 1 ;;
+          esac
+          dotnet "$REGISTRY_CLI" validate
+      - id: transaction
+        name: Find prepared transaction
+        run: |
+          if test -f .registry-operation.json; then
+            echo 'prepared=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Mint short-lived repository App token after validation
+        if: steps.transaction.outputs.prepared == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WONDER_REGISTRY_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WONDER_REGISTRY_APP_PRIVATE_KEY || secrets.NYA_REGISTRY_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Publish data-only PR and enable protected auto-merge
+        if: steps.transaction.outputs.prepared == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
+        run: dotnet "$REGISTRY_CLI" publish

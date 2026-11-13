@@ -1,13 +1,3 @@
-* @TouristH
-
 /.github/ @TouristH
-/plugins/ @TouristH
-/plugins.json @TouristH
-/plugin_details.json @TouristH
-/schemas/ @TouristH
-/templates/ @TouristH
-/tests/ @TouristH
-/tools/ @TouristH
-/reviews/ @TouristH
-/public/ @TouristH
 /repository.json @TouristH
+/src/Wonder.PluginRegistry/ @TouristH

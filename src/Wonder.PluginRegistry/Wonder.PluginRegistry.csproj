@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <WonderExtensibilityProject Condition="'$(WonderExtensibilityProject)' == ''">../../../Wonder Minecraft Launcher/src/Wonder.Extensibility/Wonder.Extensibility.csproj</WonderExtensibilityProject>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="$(WonderExtensibilityProject)" /></ItemGroup>
+</Project>

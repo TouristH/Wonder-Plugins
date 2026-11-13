@@ -3,3 +3,6 @@
 *.py text eol=lf
 *.yml text eol=lf
 *.md text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.zip binary

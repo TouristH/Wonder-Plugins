@@ -1,189 +1,110 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/TouristH/UNuse/main/schemas/index-v1.schema.json",
-  "title": "UNuse generated plugin index v1",
+  "title": "Wonder plugin catalog v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "name", "sourceUrl", "plugins"],
+  "required": [
+    "schemaVersion",
+    "product",
+    "plugins"
+  ],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
-    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "sourceUrl": { "$ref": "#/$defs/httpsUrl" },
+    "schemaVersion": {
+      "const": 1
+    },
+    "product": {
+      "const": "wonder"
+    },
     "plugins": {
       "type": "array",
-      "maxItems": 2048,
-      "items": { "$ref": "#/$defs/plugin" }
-    }
-  },
-  "$defs": {
-    "httpsUrl": {
-      "type": "string",
-      "format": "uri",
-      "pattern": "^(?!.*[\\s\\\\\\u0000-\\u001F\\u007F])(?!.*%(?![0-9A-Fa-f]{2}))https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*(?::443)?(?:[/?#]|$)"
-    },
-    "githubReleaseZip": {
-      "type": "string",
-      "format": "uri",
-      "maxLength": 2048,
-      "pattern": "^(?!.*[\\s\\\\\\u0000-\\u001F\\u007F])(?!.*%(?![0-9A-Fa-f]{2}))https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/download/[^/?#]+/[^/?#]+\\.zip$"
-    },
-    "githubRepo": {
-      "type": "string",
-      "format": "uri",
-      "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$"
-    },
-    "semver": {
-      "type": "string",
-      "maxLength": 64,
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
-    },
-    "capabilities": {
-      "type": "array",
-      "maxItems": 64,
-      "uniqueItems": true,
       "items": {
-        "enum": [
-          "ui.components",
-          "ui.native",
-          "network.http",
-          "system.info.read",
-          "user-files.read",
-          "user-files.write",
-          "process.start",
-          "minecraft.instance.read",
-          "minecraft.instance.modify",
-          "minecraft.launch.modify"
-        ]
-      }
-    },
-    "plugin": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id", "name", "description", "authors", "repositoryUrl",
-        "maintainers", "categories", "license", "releases"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "maxLength": 128,
-          "pattern": "^[a-z][a-z0-9]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
-        },
-        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "description": { "type": "string", "minLength": 1, "maxLength": 8192 },
-        "authors": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 64,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
-        },
-        "repositoryUrl": { "$ref": "#/$defs/githubRepo" },
-        "maintainers": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 16,
-          "uniqueItems": true,
-          "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "author",
+          "version",
+          "apiVersion",
+          "downloadUrl",
+          "sha256",
+          "size",
+          "sourceUrl"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "plugin-v1.schema.json#/properties/id"
+          },
+          "name": {
+            "$ref": "plugin-v1.schema.json#/properties/name"
+          },
+          "description": {
+            "$ref": "plugin-v1.schema.json#/properties/description"
+          },
+          "author": {
+            "$ref": "plugin-v1.schema.json#/properties/author"
+          },
+          "version": {
+            "$ref": "plugin-v1.schema.json#/properties/version"
+          },
+          "apiVersion": {
+            "const": 1
+          },
+          "downloadUrl": {
             "type": "string",
-            "maxLength": 39,
-            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 67108864
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://"
+          },
+          "permissions": {
+            "$ref": "plugin-v1.schema.json#/properties/permissions"
+          },
+          "review": {
+            "required": [
+              "status",
+              "reviewer",
+              "reviewedAt",
+              "sha256"
+            ],
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reviewedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "verified",
+                  "revoked"
+                ]
+              },
+              "sha256": {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "reviewer": {
+                "minLength": 1,
+                "type": "string",
+                "maxLength": 256
+              }
+            }
           }
-        },
-        "categories": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 8,
-          "uniqueItems": true,
-          "items": {
-            "enum": [
-              "appearance", "automation", "gameplay", "integration",
-              "launch", "management", "utilities"
-            ]
-          }
-        },
-        "license": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "releases": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 128,
-          "items": { "$ref": "#/$defs/release" }
         }
-      }
-    },
-    "release": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "version", "channel", "publishedAt", "releaseNotesUrl",
-        "download", "compatibility", "requiredCapabilities",
-        "optionalCapabilities", "yanked"
-      ],
-      "properties": {
-        "version": { "$ref": "#/$defs/semver" },
-        "channel": { "enum": ["stable", "preview"] },
-        "publishedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-        },
-        "releaseNotesUrl": { "$ref": "#/$defs/httpsUrl" },
-        "download": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["url", "sha256", "size"],
-          "properties": {
-            "url": { "$ref": "#/$defs/githubReleaseZip" },
-            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-            "size": { "type": "integer", "minimum": 1, "maximum": 268435456 }
-          }
-        },
-        "compatibility": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["manifestVersion", "apiVersion", "minimumLauncherVersion"],
-          "properties": {
-            "manifestVersion": { "type": "integer", "const": 1 },
-            "apiVersion": { "type": "string", "pattern": "^1(?:\\.[0-9]+){1,2}$" },
-            "minimumLauncherVersion": { "$ref": "#/$defs/semver" },
-            "maximumLauncherVersionExclusive": { "$ref": "#/$defs/semver" }
-          }
-        },
-        "requiredCapabilities": { "$ref": "#/$defs/capabilities" },
-        "optionalCapabilities": { "$ref": "#/$defs/capabilities" },
-        "yanked": { "type": "boolean" },
-        "yankReason": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "review": { "$ref": "#/$defs/review" }
-      },
-      "allOf": [
-        {
-          "if": { "properties": { "yanked": { "const": true } } },
-          "then": { "required": ["yankReason"] },
-          "else": { "not": { "required": ["yankReason"] } }
-        }
-      ]
-    },
-    "review": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status", "reviewedBy", "reviewedAt", "sha256"
-      ],
-      "properties": {
-        "status": { "const": "verified" },
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "reviewedBy": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 39,
-          "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"
-        },
-        "reviewedAt": {
-          "type": "string",
-          "format": "date-time",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-        },
-        "notes": { "type": "string", "maxLength": 4096 }
       }
     }
   }

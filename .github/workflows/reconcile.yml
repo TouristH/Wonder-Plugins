@@ -1,0 +1,33 @@
+name: Reconcile merged registry operations
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+concurrency:
+  group: registry-write
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: registry
+          persist-credentials: false
+      - id: tools
+        uses: ./registry/.github/actions/setup-registry
+      - name: Report operations only after their App PR merged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
+        run: dotnet "$REGISTRY_CLI" reconcile
