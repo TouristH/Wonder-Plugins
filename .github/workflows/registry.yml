@@ -4,7 +4,7 @@ on:
     - cron: '17 */6 * * *'
   workflow_dispatch:
   issues:
-    types: [opened, reopened]
+    types: [opened, reopened, labeled]
   issue_comment:
     types: [created]
 permissions:
@@ -13,14 +13,17 @@ permissions:
   issues: write
 concurrency:
   group: registry-write
-  cancel-in-progress: false
+  queue: max
 jobs:
   registry:
     if: >-
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
        (github.event_name == 'issues' && !github.event.issue.pull_request &&
-        (startsWith(github.event.issue.title, '[Plugin]') || startsWith(github.event.issue.title, '[Review]'))) ||
+        ((contains(github.event.issue.labels.*.name, 'plugin-submission') &&
+          (contains(github.event.issue.labels.*.name, 'queued-for-intake') || github.event.action == 'opened' || github.event.action == 'reopened') &&
+          (github.event.action != 'labeled' || github.event.label.name == 'queued-for-intake')) ||
+         (contains(github.event.issue.labels.*.name, 'review-request') && github.event.action != 'labeled'))) ||
        (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
         (startsWith(github.event.comment.body, '/verify ') || startsWith(github.event.comment.body, '/revoke-review '))))
     runs-on: ubuntu-latest
@@ -69,5 +72,6 @@ jobs:
         if: steps.transaction.outputs.prepared == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REGISTRY_ISSUE_TOKEN: ${{ github.token }}
           REGISTRY_CLI: ${{ steps.tools.outputs.cli }}
         run: dotnet "$REGISTRY_CLI" publish

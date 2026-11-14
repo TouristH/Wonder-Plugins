@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Wonder Launcher 使用问题
     url: https://github.com/TouristH/Wonder-Launcher/issues

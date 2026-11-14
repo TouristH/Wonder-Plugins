@@ -9,7 +9,7 @@ permissions:
   issues: write
 concurrency:
   group: registry-write
-  cancel-in-progress: false
+  queue: max
 jobs:
   reconcile:
     if: github.ref == 'refs/heads/main'

@@ -101,7 +101,7 @@ public sealed class RegistryTests : IDisposable
     {
         var bytes=Package();var entry=await Entry(bytes);Json.Write(registry.PathFor($"registry/plugins/{Id}.json"),Record(entry));
         var comment=Json.Parse($$"""{"id":101,"body":"/verify {{Id}}@g1:1.0.0 sha256:{{Json.Text(entry,"sha256")}}","user":{"login":"maintainer","id":42},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","issue_url":"https://api.github.com/repos/example/registry/issues/1"}""");
-        var issue=Json.Parse("""{"number":1,"title":"[Plugin] Test","body":"### 插件仓库 / Repository\n\nhttps://github.com/example/toolbox\n"}""");
+        var issue=SubmissionIssue();
         using var api=new GitHub(null,new Reply(request=>request.RequestUri!.AbsolutePath.EndsWith("comments/101") ? comment : request.RequestUri.AbsolutePath.EndsWith("/comments") ? new JsonArray(comment.DeepClone()) : issue));
         var history=await Reviews.Apply(registry,api,101,(_,_)=>Task.FromResult(bytes));Assert.Equal("verified",Json.Text(history["events"]![0]!,"status"));
         comment["user"]!["id"]=43;await Assert.ThrowsAsync<InvalidDataException>(()=>Reviews.Apply(registry,api,101,(_,_)=>Task.FromResult(bytes)));
@@ -179,7 +179,7 @@ public sealed class RegistryTests : IDisposable
     {
         var entry=await Entry(Package());Json.Write(registry.PathFor($"registry/plugins/{Id}.json"),Record(entry));
         var operation=Json.Parse($$"""{"kind":"review","commentId":100,"path":"{{Reviews.Relative(entry)}}","issues":[1]}""");
-        var pr=MergedPr(operation,7);var posts=0;var pages=0;
+        var pr=MergedPr(operation,7);var posts=0;var pages=0;var closes=0;
         using var api=new GitHub(null,new Reply(request=>
         {
             if(request.RequestUri!.AbsolutePath.EndsWith("/pulls"))
@@ -199,10 +199,19 @@ public sealed class RegistryTests : IDisposable
                 var pending=pr.DeepClone();pending["number"]=9;pending["merged_at"]=null;
                 return new JsonArray(pr.DeepClone(),spoofed,pending);
             }
+            if (request.Method==HttpMethod.Get && request.RequestUri.AbsolutePath.EndsWith("/issues/1")) return SubmissionIssue();
+            if (request.Method==HttpMethod.Post && request.RequestUri.AbsolutePath.EndsWith("/labels")) return new JsonArray();
+            if (request.Method==HttpMethod.Patch)
+            {
+                var body=Json.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                Assert.Equal("closed",Json.Text(body,"state"));
+                closes++;
+                return new JsonObject();
+            }
             if(request.Method==HttpMethod.Post) {posts++;return new JsonObject();}
             return new JsonArray();
         }));
-        await Publication.Reconcile(registry,landedApi);Assert.Equal(1,posts);
+        await Publication.Reconcile(registry,landedApi);Assert.Equal(1,posts);Assert.Equal(1,closes);
         using var repeatedApi=new GitHub(null,new Reply(request=>
         {
             if(request.RequestUri!.AbsolutePath.EndsWith("/pulls")) return new JsonArray(pr.DeepClone());
@@ -211,13 +220,44 @@ public sealed class RegistryTests : IDisposable
         }));
         await Publication.Reconcile(registry,repeatedApi);Assert.Equal(1,posts);
     }
+
+    [Fact]
+    public async Task LandedIntakeKeepsIssueOpenAndSetsSeparateIntakeAndReviewLabels()
+    {
+        var entry = await Entry(Package());
+        Json.Write(registry.PathFor($"registry/plugins/{Id}.json"), Record(entry));
+        var pr = MergedPr(new JsonObject { ["kind"] = "sync", ["plugins"] = new JsonArray(Id), ["issues"] = new JsonArray(1L) }, 7, "registry-bot/sync/abc");
+        var addedLabels = new List<string>();
+        using var api = new GitHub(null, new Reply(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/pulls")) return new JsonArray(pr.DeepClone());
+            if (path.EndsWith("/issues/1"))
+            {
+                Assert.Equal(HttpMethod.Get, request.Method);
+                return SubmissionIssue();
+            }
+            if (path.EndsWith("/labels"))
+            {
+                Assert.Equal(HttpMethod.Post, request.Method);
+                var body = Json.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                addedLabels.Add(body["labels"]!.AsArray().Single()!.GetValue<string>());
+                return new JsonArray();
+            }
+            if (path.EndsWith("/comments")) return new JsonArray();
+            throw new InvalidOperationException($"Unexpected request: {request.Method} {path}");
+        }));
+        await Publication.Reconcile(registry, api);
+        Assert.Equal(new[] { IssueLabels.Listed, IssueLabels.PendingReview }, addedLabels);
+    }
     private static JsonNode ReviewComment(JsonNode entry,long id,string action) => Json.Parse($$"""{"id":{{id}},"body":"/{{action}} {{Id}}@g1:1.0.0 sha256:{{Json.Text(entry,"sha256")}} reason","user":{"login":"maintainer","id":42},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","issue_url":"https://api.github.com/repos/example/registry/issues/1"}""");
-    private static GitHub ReviewApi(JsonNode comment) => new(null,new Reply(request=>request.RequestUri!.AbsolutePath.EndsWith("comments/"+Json.Number(comment,"id")) ? comment : request.RequestUri.AbsolutePath.EndsWith("/comments") ? new JsonArray(comment.DeepClone()) : Json.Parse("""{"number":1,"title":"[Plugin] Test","body":"### 插件仓库 / Repository\n\nhttps://github.com/example/toolbox\n"}""")));
-    private static JsonNode MergedPr(JsonNode operation,long number) => new JsonObject
+    private static GitHub ReviewApi(JsonNode comment) => new(null,new Reply(request=>request.RequestUri!.AbsolutePath.EndsWith("comments/"+Json.Number(comment,"id")) ? comment : request.RequestUri.AbsolutePath.EndsWith("/comments") ? new JsonArray(comment.DeepClone()) : SubmissionIssue()));
+    private static JsonNode SubmissionIssue() => Json.Parse("""{"number":1,"title":"[Plugin] Test","state":"open","labels":[{"name":"plugin-submission"}],"body":"### 插件仓库 / Repository\n\nhttps://github.com/example/toolbox\n"}""");
+    private static JsonNode MergedPr(JsonNode operation,long number,string? branch = null) => new JsonObject
     {
         ["number"]=number,["merged_at"]="2026-01-01T00:00:00Z",["html_url"]=$"https://github.com/example/registry/pull/{number}",
         ["body"]="<!-- wonder-operation:"+operation.ToJsonString()+" -->",["user"]=Json.Parse("""{"login":"test[bot]","id":55,"type":"Bot"}"""),
-        ["head"]=new JsonObject { ["ref"]="registry-bot/review/"+Json.Number(operation,"commentId"),["repo"]=new JsonObject { ["full_name"]="example/registry" } },
+        ["head"]=new JsonObject { ["ref"]=branch ?? "registry-bot/review/"+Json.Number(operation,"commentId"),["repo"]=new JsonObject { ["full_name"]="example/registry" } },
         ["base"]=Json.Parse("""{"ref":"main","repo":{"full_name":"example/registry"}}""")
     };
     public void Dispose()

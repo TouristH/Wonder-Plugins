@@ -1,6 +1,6 @@
 # Wonder Plugins
 
-[Wonder Launcher](https://github.com/TouristH/Wonder-Launcher) 的专属在线插件仓库。作者在自己的 GitHub 仓库发布插件，通过规范 Issue 或 `wonder-plugin` Topic 进入自动收录；维护者在 Issue 中发出验证指令，才将指定版本标为人工验证通过。
+[Wonder Launcher](https://github.com/TouristH/Wonder-Launcher) 的在线插件仓库。作者在自己的 GitHub 仓库发布插件，再通过收录表单提交。维护者可在 Issue 中验证具体版本。
 
 启动器读取 [main/public/v1/index.json](https://raw.githubusercontent.com/TouristH/Wonder-Plugins/main/public/v1/index.json)。同一插件的每个已收录版本都保留下载地址、SHA-256 和独立验证状态。未验证、撤销验证不会阻止下载；客户端首次启用前自行分析插件，用户同意后才运行。
 
@@ -8,8 +8,8 @@
 
 1. ZIP 根部包含 `plugin.json`、入口 DLL、`LICENSE`、`RISK.md`、工具生成的 `permissions.json`，并附带所需依赖。作者的访问行为说明可选，不能代替自动分析。
 2. 在作者仓库创建固定版本 GitHub Release，发布 ZIP，并在根 `_manifest.json` 登记完整版本列表。
-3. 创建 **Plugin submission** Issue。机器人检查清单、发布者身份、包路径、大小和 SHA-256，重新生成权限报告并核对，通过后经受保护 PR 收录。也可通过 Topic 发现和定时刷新同步版本。
-4. 维护者检查源码、构建方式和行为后，在对应 Issue 输入 `/verify <id>@g1:<version> sha256:<hash>`；撤销用 `/revoke-review`。授予验证时机器人再次校验指定包并记录历史；撤销无需原包仍可下载。
+3. 使用 **收录 Wonder 插件**表单。它会自动添加类型和等待收录标签。机器人检查清单、发布者身份、包路径、大小和 SHA-256，重新生成并核对权限报告，通过后经 PR 收录。Issue 保持打开并显示等待验证。
+4. 维护者检查源码、构建方式和行为后，在对应 Issue 输入 `/verify <id>@g1:<version> sha256:<hash>`。验证记录合并后，机器人标记已验证并关闭 Issue。撤销用 `/revoke-review`，保留历史；原包无法下载时仍能撤销。
 
 自动收录始终不授予人工验证状态。验证绑定具体安装包，不跨版本继承，也不构成安全保证。
 

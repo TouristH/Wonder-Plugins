@@ -7,6 +7,12 @@ namespace Wonder.PluginRegistry;
 
 public static class Intake
 {
+    public static string? SubmittedRepository(JsonNode issue)
+    {
+        try { return IssueRepository(issue); }
+        catch (InvalidDataException) { return null; }
+    }
+
     public static string IssueRepository(JsonNode issue)
     {
         if (issue["pull_request"] != null || !Json.Text(issue,"title").StartsWith("[Plugin]")) throw new InvalidDataException("Not a plugin submission");
@@ -61,64 +67,102 @@ public static class Intake
     public static IEnumerable<T> Rotate<T>(IReadOnlyList<T> values, int offset, int count) =>
         values.Count == 0 ? [] : values.Skip((int)((uint)offset % values.Count)).Concat(values).Take(Math.Min(count,values.Count));
 
+    public static bool IsQueued(JsonNode issue) => IssueLabels.IsSubmission(issue) &&
+        IssueLabels.HasLabel(issue, IssueLabels.Queued) && Json.Text(issue, "state") == "open";
+
     public static async Task Collect(Registry registry, GitHub api, JsonNode? eventData = null)
     {
-        var records = registry.Records();
+        var repository = registry.RepositoryName;
         var offset = int.TryParse(Environment.GetEnvironmentVariable("GITHUB_RUN_NUMBER"), out var run) ? run : 0;
-        // Two bounded pages: the newest queue plus a rotating older page. No full-list traversal.
-        var issueQuery = $"/repos/{registry.RepositoryName}/issues?state=open&labels=plugin-submission&sort=created&direction=desc&per_page=100";
-        var issues = (await api.Get(issueQuery+"&page=1")).AsArray().Select(x=>x!).ToList();
-        var olderPage = 2 + (uint)offset / 7 % 32;
-        issues.AddRange((await api.Get(issueQuery+$"&page={olderPage}")).AsArray().Select(x=>x!));
-        var selected = Rotate(issues,offset*16,16).ToList();
-        if (eventData?["issue"] is { } direct && eventData["action"]?.GetValue<string>() is "opened" or "reopened")
+        List<JsonNode> selected;
+        if (eventData != null)
         {
-            var live = await api.Get($"/repos/{registry.RepositoryName}/issues/{Json.Number(direct,"number")}");
-            if (Json.Text(live,"title").StartsWith("[Plugin]")) selected.Insert(0,live);
+            if (eventData["issue"] is not { } issue || eventData["action"]?.GetValue<string>() is not ("opened" or "reopened" or "labeled")) return;
+            var live = await api.Get($"/repos/{repository}/issues/{Json.Number(issue, "number")}");
+            if (!IsQueued(live)) return;
+            selected = [live];
         }
+        else
+        {
+            // Bounded queue scan: the newest page plus a rotating older page.
+            var issueQuery = $"/repos/{repository}/issues?state=open&labels={IssueLabels.PluginSubmission}%2C{IssueLabels.Queued}&sort=created&direction=desc&per_page=100";
+            var issues = (await api.Get(issueQuery + "&page=1")).AsArray().Select(x => x!).ToList();
+            var olderPage = 2 + (uint)offset / 7 % 32;
+            issues.AddRange((await api.Get(issueQuery + $"&page={olderPage}")).AsArray().Select(x => x!));
+            selected = Rotate(issues, offset * 16, 16).Where(IsQueued).ToList();
+        }
+
+        var records = registry.Records();
         var candidates = new Dictionary<string,List<long>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var issue in selected.DistinctBy(x=>Json.Number(x,"number")).Take(17))
+        foreach (var issue in selected.DistinctBy(x => Json.Number(x, "number")))
         {
-            try { var name = IssueRepository(issue); if (!candidates.TryGetValue(name, out var requests)) candidates[name] = requests = []; requests.Add(Json.Number(issue,"number")); }
-            catch (InvalidDataException error) { await api.CommentOnce(registry.RepositoryName,Json.Number(issue,"number"),"自动收录未通过："+error.Message+"。修正表单后关闭并重新打开 Issue 可重试。"); }
-        }
-        // Rotate existing publishers and discovery separately so one queue cannot starve the other.
-        var existing = records.Values.Select(x => Json.Text(x["repository"]!,"fullName")).Order(StringComparer.Ordinal).ToArray();
-        foreach (var name in Rotate(existing,offset*16,16)) candidates.TryAdd(name,[]);
-        try
-        {
-            var query = "/search/repositories?q=topic%3Awonder-plugin+fork%3Afalse+archived%3Afalse&sort=updated&per_page=16";
-            var search = await api.Get(query+"&page=1");
-            foreach (var repo in search["items"]!.AsArray()) candidates.TryAdd(Json.Text(repo!,"full_name"),[]);
-            var pages = Math.Min(62,(Json.Number(search,"total_count")+15)/16);
-            if (pages > 1)
-                foreach (var repo in (await api.Get(query+$"&page={2+(uint)offset%(pages-1)}"))["items"]!.AsArray()) candidates.TryAdd(Json.Text(repo!,"full_name"),[]);
-        }
-        catch (HttpRequestException error) { Console.WriteLine("Topic discovery deferred: "+error.Message); }
-        var changed = new JsonArray(); var accepted = new JsonArray();
-        foreach (var (name, requestIds) in candidates)
-        {
+            var number = Json.Number(issue, "number");
             try
             {
-                var next = await Publisher(api,name); var id = Json.Text(next,"id"); records.TryGetValue(id,out var old);
-                await VerifyUpdate(old,next,api.Download);
-                if (!Json.Equal(old,next)) { Json.Write(registry.PathFor($"registry/plugins/{id}.json"),next); changed.Add(id); }
-                foreach (var issue in requestIds)
-                {
-                    accepted.Add(issue);
-                    await api.CommentOnce(registry.RepositoryName,issue,Json.Equal(old,next)
-                        ? "该插件已收录。维护者可对具体版本执行人工验证：\n\n"+Commands(next)
-                        : "自动技术校验已通过，正在准备受保护的收录 PR；合并后才算收录。人工验证尚未完成。");
-                }
+                var name = IssueRepository(issue);
+                if (!candidates.TryGetValue(name, out var requests)) candidates[name] = requests = [];
+                requests.Add(number);
+            }
+            catch (InvalidDataException error) { await ReportFailure(api, repository, number, error); }
+        }
+        if (eventData == null)
+        {
+            var existing = records.Values.Select(x => Json.Text(x["repository"]!, "fullName")).Order(StringComparer.Ordinal).ToArray();
+            foreach (var name in Rotate(existing, offset * 16, 16)) candidates.TryAdd(name, []);
+        }
+
+        var changed = new JsonArray();
+        var accepted = new JsonArray();
+        foreach (var (name, requestIds) in candidates)
+        {
+            JsonNode next;
+            JsonNode? old;
+            try
+            {
+                next = await Publisher(api, name);
+                records.TryGetValue(Json.Text(next, "id"), out old);
+                if (old == null && requestIds.Count == 0)
+                    throw new InvalidDataException("A new plugin ID needs a queued submission Issue");
+                await VerifyUpdate(old, next, api.Download);
             }
             catch (Exception error) when (error is HttpRequestException or InvalidDataException or FormatException or System.Text.Json.JsonException or InvalidOperationException)
             {
                 Console.WriteLine($"Deferred {name}: {error.Message}");
-                foreach (var issue in requestIds) await api.CommentOnce(registry.RepositoryName,issue,"自动收录未完成："+error.Message+"。已有版本保留；修正后关闭并重新打开 Issue 可重试，网络失败也会在定时任务中重试。");
+                foreach (var issue in requestIds) await ReportFailure(api, repository, issue, error);
+                continue;
             }
+            if (Json.Equal(old, next))
+            {
+                foreach (var issue in requestIds)
+                {
+                    await MarkListed(api, repository, issue);
+                    await api.CommentOnce(repository, issue, "该插件已收录。维护者可对具体版本执行人工验证：\n\n" + Commands(next));
+                }
+                continue;
+            }
+            var id = Json.Text(next, "id");
+            Json.Write(registry.PathFor($"registry/plugins/{id}.json"), next);
+            changed.Add(id);
+            foreach (var issue in requestIds) accepted.Add(issue);
         }
+        if (changed.Count == 0) return;
         await registry.Index(true);
         Json.Write(registry.PathFor(".registry-operation.json"), new JsonObject { ["kind"] = "sync", ["plugins"] = changed, ["issues"] = accepted });
     }
+
+    private static async Task ReportFailure(GitHub api, string repository, long issue, Exception error)
+    {
+        // Leave transient GitHub failures queued so the scheduled intake can retry.
+        if (error is HttpRequestException http && (http.StatusCode == null || (int)http.StatusCode is 403 or 429 or >= 500)) return;
+        await IssueLabels.Set(api, repository, issue, IssueLabels.IntakeFailed);
+        await api.CommentOnce(repository, issue, "自动收录未通过：" + error.Message + "。修正后请通过投稿表单重新提交，或请维护者将本 Issue 重新加入收录队列。");
+    }
+
+    public static async Task MarkListed(GitHub api, string repository, long issue)
+    {
+        await IssueLabels.Set(api, repository, issue, IssueLabels.Listed);
+        await IssueLabels.Set(api, repository, issue, IssueLabels.PendingReview, onlyIfReviewUnset: true);
+    }
+
     public static string Commands(JsonNode record) => string.Join("\n",record["releases"]!.AsArray().Select(x=>$"`/verify {Json.Text(x!,"id")}@g1:{Json.Text(x!,"version")} sha256:{Json.Text(x!,"sha256")}`"));
 }

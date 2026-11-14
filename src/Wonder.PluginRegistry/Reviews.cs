@@ -8,6 +8,32 @@ namespace Wonder.PluginRegistry;
 public sealed record ReviewCommand(string Action, string Id, int Generation, string Version, string Hash, string Note);
 public static class Reviews
 {
+    public static async Task OpenRequest(Registry registry, GitHub api, long issueNumber)
+    {
+        var repository = registry.RepositoryName;
+        var issue = await api.Get($"/repos/{repository}/issues/{issueNumber}");
+        if (!IssueLabels.IsReviewRequest(issue) || Json.Text(issue, "state") != "open") return;
+        if (IssueLabels.HasLabel(issue, IssueLabels.Verified) || IssueLabels.HasLabel(issue, IssueLabels.Revoked) ||
+            IssueLabels.HasLabel(issue, IssueLabels.ReviewPendingMerge)) return;
+        var body = Json.Text(issue, "body");
+        var entry = (await registry.Releases()).SingleOrDefault(release => MatchesRequestedRelease(body, release));
+        if (entry == null)
+        {
+            await IssueLabels.Set(api, repository, issueNumber, IssueLabels.ReviewNeedsFix);
+            await api.CommentOnce(repository, issueNumber, "找不到此审核表单指定的插件版本。请核对插件 ID 和版本，修正后重开 Issue。");
+            return;
+        }
+        await IssueLabels.Set(api, repository, issueNumber, IssueLabels.PendingReview);
+        await api.CommentOnce(repository, issueNumber, $"供维护者完成源码与行为检查后使用：\n\n`/verify {Json.Text(entry, "id")}@g1:{Json.Text(entry, "version")} sha256:{Json.Text(entry, "sha256")}`");
+    }
+
+    private static bool MatchesRequestedRelease(string body, JsonNode release) =>
+        HasField(body, "插件 ID / Plugin ID", Json.Text(release, "id")) &&
+        HasField(body, "插件版本 / Version", Json.Text(release, "version"));
+
+    private static bool HasField(string body, string label, string value) =>
+        Regex.IsMatch(body, $@"(?m)^### {Regex.Escape(label)}[^\S\r\n]*\r?\n(?:[^\S\r\n]*\r?\n)*{Regex.Escape(value)}[^\S\r\n]*\r?$");
+
     public static ReviewCommand Parse(string body)
     {
         var m = Regex.Match(body, @"\A/(verify|revoke-review) ([a-z0-9][a-z0-9._-]{0,79})@g([1-9][0-9]*):([0-9]+\.[0-9]+\.[0-9]+) sha256:([0-9a-f]{64})(?: ([^\r\n]{1,4096}))?\z");
@@ -49,11 +75,12 @@ public static class Reviews
         var issueUrl = new Uri(Json.Text(comment,"issue_url"));
         if (issueUrl.Host != "api.github.com" || !issueUrl.AbsolutePath.StartsWith($"/repos/{registry.RepositoryName}/issues/")) throw new InvalidDataException("Invalid review Issue");
         var issue = await api.Get(issueUrl.AbsolutePath);
-        if (issue["pull_request"] != null || !(Json.Text(issue,"title").StartsWith("[Plugin]") || Json.Text(issue,"title").StartsWith("[Review]"))) throw new InvalidDataException("Review on the Plugin submission or Review Issue");
+        var submission = IssueLabels.IsSubmission(issue);
+        if (!submission && !IssueLabels.IsReviewRequest(issue)) throw new InvalidDataException("Review on the Plugin submission or Review Issue");
         var entry = (await registry.Releases()).SingleOrDefault(x => Json.Text(x,"id") == command.Id && Json.Text(x,"version") == command.Version) ?? throw new InvalidDataException("Release is not listed");
         if (Json.Text(entry,"sha256") != command.Hash) throw new InvalidDataException("Review hash differs from the listed package");
-        if (Json.Text(issue,"title").StartsWith("[Plugin]") && Json.Text(entry,"sourceUrl") != "https://github.com/" + Intake.IssueRepository(issue)) throw new InvalidDataException("Command targets another publisher");
-        if (Json.Text(issue,"title").StartsWith("[Review]") && !Regex.IsMatch(Json.Text(issue,"body"), @"(?m)^"+Regex.Escape(command.Id)+@"\s*$")) throw new InvalidDataException("Review Issue must identify plugin ID");
+        if (submission && !string.Equals(Json.Text(entry,"sourceUrl"), "https://github.com/" + Intake.IssueRepository(issue), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Command targets another publisher");
+        if (!submission && !MatchesRequestedRelease(Json.Text(issue, "body"), entry)) throw new InvalidDataException("Review Issue must identify the exact plugin ID and version");
         var comments = await api.Pages(issueUrl.AbsolutePath + "/comments");
         foreach (var newer in comments.Where(x => Json.Number(x,"id") > commentId && Trusted(registry.Config,x["user"]!)))
         {

@@ -23,13 +23,13 @@ public static class Publication
         pr["user"]?["type"]?.GetValue<string>() == "Bot" && pr["base"]?["ref"]?.GetValue<string>() == "main" &&
         pr["base"]?["repo"]?["full_name"]?.GetValue<string>() == registry.RepositoryName &&
         pr["head"]?["repo"]?["full_name"]?.GetValue<string>() == registry.RepositoryName;
-    public static async Task Publish(Registry registry, GitHub api)
+    public static async Task Publish(Registry registry, GitHub api, GitHub? issueApi = null)
     {
         var operation = Json.Read(registry.PathFor(".registry-operation.json"));
         var baseCommit = Git(registry.Root,"rev-parse","HEAD").Trim();
         var current = await api.Get($"/repos/{registry.RepositoryName}/git/ref/heads/main");
         if (Json.Text(current["object"]!,"sha") != baseCommit) throw new InvalidDataException("Main changed; rerun collection before publishing");
-        var paths = Git(registry.Root,"ls-files","--modified","--others","--exclude-standard","-z").Split('\0',StringSplitOptions.RemoveEmptyEntries).Where(DataPath).ToArray();
+        var paths = Git(registry.Root,"ls-files","--modified","--others","--exclude-standard","-z").Split('\0',StringSplitOptions.RemoveEmptyEntries).Where(DataPath).Distinct().ToArray();
         if (paths.Length == 0) { Console.WriteLine("No registry changes"); return; }
         if (paths.Any(x => !File.Exists(registry.PathFor(x)))) throw new InvalidDataException("Publication may not delete registry history");
         var commit = await api.Get($"/repos/{registry.RepositoryName}/git/commits/{baseCommit}");
@@ -45,6 +45,12 @@ public static class Publication
             if (!AppPullRequest(registry,pr) || Json.Text(pr["head"]!,"ref") != branch || Json.Text(previousOperation,"kind") != kind ||
                 (kind == "review" && Json.Number(previousOperation,"commentId") != Json.Number(operation,"commentId")))
                 throw new InvalidDataException("Existing PR does not belong to this App operation");
+            if (kind == "sync")
+            {
+                var issueNumbers = previousOperation["issues"]!.AsArray().Concat(operation["issues"]!.AsArray())
+                    .Select(issue => issue!.GetValue<long>()).Distinct();
+                operation["issues"] = new JsonArray(issueNumbers.Select(number => (JsonNode?)JsonValue.Create(number)).ToArray());
+            }
         }
         var newCommit = await api.Send("POST",$"/repos/{registry.RepositoryName}/git/commits",new JsonObject { ["message"] = "Update Wonder plugin " + kind, ["tree"] = newTree["sha"]!.DeepClone(), ["parents"] = new JsonArray(baseCommit) });
         try { await api.Send("POST",$"/repos/{registry.RepositoryName}/git/refs",new JsonObject { ["ref"] = "refs/heads/" + branch, ["sha"] = newCommit["sha"]!.DeepClone() }); }
@@ -61,10 +67,27 @@ public static class Publication
         }
         var body = "Automated Wonder registry update. Technical collection does not imply human verification.\n\n<!-- wonder-operation:" + operation.ToJsonString() + " -->";
         if (pr == null) pr = await api.Send("POST",$"/repos/{registry.RepositoryName}/pulls",new JsonObject { ["title"] = "Update Wonder plugin " + kind, ["head"] = branch, ["base"] = "main", ["body"] = body });
-        else await api.Send("PATCH",$"/repos/{registry.RepositoryName}/pulls/{Json.Number(pr,"number")}",new JsonObject { ["body"] = body });
-        var graph = await api.Send("POST","/graphql",new JsonObject { ["query"] = "mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id}}}", ["variables"] = new JsonObject { ["id"] = pr["node_id"]!.DeepClone() } });
-        if (graph["errors"] is { } errors) throw new InvalidDataException("Cannot enable protected auto-merge: " + errors.ToJsonString());
-        Console.WriteLine(Json.Text(pr,"html_url"));
+        else if (Json.Text(pr, "body") != body)
+            pr = await api.Send("PATCH",$"/repos/{registry.RepositoryName}/pulls/{Json.Number(pr,"number")}",new JsonObject { ["body"] = body });
+        if (pr["auto_merge"] == null)
+        {
+            var graph = await api.Send("POST","/graphql",new JsonObject { ["query"] = "mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id}}}", ["variables"] = new JsonObject { ["id"] = pr["node_id"]!.DeepClone() } });
+            if (graph["errors"] is { } errors) throw new InvalidDataException("Cannot enable protected auto-merge: " + errors.ToJsonString());
+        }
+        var url = Json.Text(pr, "html_url");
+        Console.WriteLine(url);
+        if (issueApi != null)
+        {
+            foreach (var number in operation["issues"]!.AsArray())
+            {
+                var issue = number!.GetValue<long>();
+                await IssueLabels.Set(issueApi, registry.RepositoryName, issue,
+                    kind == "review" ? IssueLabels.ReviewPendingMerge : IssueLabels.PendingMerge,
+                    keepQueued: kind == "sync");
+                if (kind == "sync") await issueApi.CommentOnce(registry.RepositoryName, issue,
+                    $"自动技术校验已通过，等待收录 PR 合并：{url}。合并后才算收录。");
+            }
+        }
     }
     public static JsonNode Operation(JsonNode pr)
     {
@@ -84,26 +107,55 @@ public static class Publication
             if (batch.Count < 100) break;
         }
         var releases = await registry.Releases(); var records = registry.Records();
+        var histories = releases.Select(entry => Reviews.Read(registry, entry)).OfType<JsonNode>().ToArray();
+        var latestIssueReviews = histories.SelectMany(history => history["events"]!.AsArray())
+            .GroupBy(item => Json.Number(item!, "issueNumber"))
+            .ToDictionary(group => group.Key, group => group.Max(item => Json.Number(item!, "commentId")));
         foreach (var pr in pullRequests.DistinctBy(x => Json.Number(x,"number")).Where(x => x["merged_at"] != null && AppPullRequest(registry,x)))
         {
             JsonNode operation; try { operation = Operation(pr); } catch (InvalidDataException) { continue; }
             var kind = Json.Text(operation,"kind"); var branch = Json.Text(pr["head"]!,"ref");
+            JsonNode? reviewEvent = null;
             if (kind == "review")
             {
                 var commentId = Json.Number(operation,"commentId"); var relative = Json.Text(operation,"path");
-                var entry = releases.FirstOrDefault(x => Reviews.Relative(x) == relative);
-                if (branch != $"registry-bot/review/{commentId}" || entry == null ||
-                    Reviews.Read(registry,entry)?["events"]?.AsArray().Any(x => Json.Number(x!,"commentId") == commentId) != true) continue;
+                var history = histories.FirstOrDefault(item => Reviews.Relative(item) == relative);
+                if (branch != $"registry-bot/review/{commentId}" || history == null) continue;
+                reviewEvent = history["events"]!.AsArray().LastOrDefault();
+                if (reviewEvent == null || Json.Number(reviewEvent, "commentId") != commentId) continue;
+                if (latestIssueReviews[Json.Number(reviewEvent, "issueNumber")] != commentId) continue;
             }
             else if (kind != "sync" || !branch.StartsWith("registry-bot/sync/") ||
                 operation["plugins"] is not JsonArray plugins || plugins.Any(id => !records.ContainsKey(id!.GetValue<string>()))) continue;
-            foreach (var issueId in operation["issues"]!.AsArray())
+            var issueIds = reviewEvent == null
+                ? operation["issues"]!.AsArray().Select(issue => issue!.GetValue<long>()).Distinct()
+                : [Json.Number(reviewEvent, "issueNumber")];
+            foreach (var id in issueIds)
             {
-                var id = issueId!.GetValue<long>(); var marker = $"<!-- wonder-merged:{Json.Number(pr,"number")} -->";
-                var comments = await api.Pages($"/repos/{registry.RepositoryName}/issues/{id}/comments");
+                var issuePath = $"/repos/{registry.RepositoryName}/issues/{id}";
+                var marker = $"<!-- wonder-merged:{Json.Number(pr,"number")} -->";
+                var comments = await api.Pages(issuePath + "/comments");
                 if (comments.Any(x => x["user"]?["type"]?.GetValue<string>() == "Bot" && Json.Text(x,"body").Contains(marker))) continue;
-                await api.Comment(registry.RepositoryName,id,$"变更已合并：{Json.Text(pr,"html_url")}。自动收录不代表人工验证；维护者可在本 Issue 对指定版本使用 /verify 或 /revoke-review。\n\n{marker}");
-                // Keep submissions open for later version-specific commands and updates.
+                var issue = await api.Get(issuePath);
+                var verified = reviewEvent != null && Json.Text(reviewEvent, "status") == "verified";
+                if (reviewEvent != null)
+                {
+                    if (!IssueLabels.IsSubmission(issue) && !IssueLabels.IsReviewRequest(issue)) continue;
+                    await IssueLabels.Set(api, registry.RepositoryName, id, verified ? IssueLabels.Verified : IssueLabels.Revoked);
+                }
+                else
+                {
+                    if (!IssueLabels.IsSubmission(issue)) continue;
+                    var publisher = Intake.SubmittedRepository(issue);
+                    if (publisher == null || !operation["plugins"]!.AsArray().Any(plugin => string.Equals(
+                        Json.Text(records[plugin!.GetValue<string>()]["repository"]!, "fullName"), publisher, StringComparison.OrdinalIgnoreCase))) continue;
+                    await Intake.MarkListed(api, registry.RepositoryName, id);
+                }
+                if (verified && Json.Text(issue, "state") == "open")
+                    await api.Send("PATCH", issuePath, new JsonObject { ["state"] = "closed", ["state_reason"] = "completed" });
+                var status = reviewEvent == null ? "插件已收录，Issue 保持打开，等待维护者验证。" :
+                    verified ? "该版本的人工验证已合并，Issue 已关闭。" : "该版本的人工验证已撤销，下载仍可用。";
+                await api.Comment(registry.RepositoryName, id, $"{status}\n\n{Json.Text(pr,"html_url")}\n\n{marker}");
             }
         }
     }

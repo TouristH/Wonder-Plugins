@@ -29,7 +29,9 @@ dotnet src/Wonder.PluginRegistry/bin/Release/net10.0/Wonder.PluginRegistry.dll c
 
 将 ZIP 上传到固定 GitHub Release 地址，不使用 `latest`。按[协议](docs/registry-protocol.md)创建根 `_manifest.json`，保留全部版本；新版本追加，不修改已发布版本及字节。
 
-提交 **Plugin submission** Issue，填写作者仓库地址，无需管理员批准才进入自动检查。公开、未归档且非 Fork 的作者仓库也可添加 `wonder-plugin` Topic。修复投稿后可重开 Issue；后续版本由周期任务同步。
+使用 **收录 Wonder 插件**表单提交作者仓库地址。模板自动添加 `plugin-submission`（插件投稿）和 `queued-for-intake`（等待收录），两项标签同时存在才进入队列。技术校验失败时显示 `validation-failed`。修正后重新填表提交，或请维护者给原 Issue 重新加上等待收录标签。已收录插件的后续版本由周期任务同步。
+
+收录 PR 提交后显示 `pending-merge`。合并后标记 `listed`（已收录）和 `pending-review`（等待验证），Issue 保持打开。
 
 ## 人工验证
 
@@ -40,7 +42,7 @@ dotnet src/Wonder.PluginRegistry/bin/Release/net10.0/Wonder.PluginRegistry.dll c
 /revoke-review io.github.example.toolbox@g1:1.0.0 sha256:<64位小写SHA-256> 撤销原因
 ```
 
-审核员登录名与 numeric ID 必须同时匹配配置。编辑已有评论不能变成新指令。机器人重新校验包，经独立 PR 合并后更新状态。撤销保留历史，旧指令不能覆盖后来的操作。未验证和撤销版本仍可下载。
+审核员登录名与 numeric ID 必须同时匹配配置。编辑已有评论不能变成新指令。审核 PR 等待合并时显示 `review-pending-merge`。验证合并后标记 `review-verified` 并关闭发出指令的 Issue。撤销合并后改为 `review-revoked`，保留审核历史和下载。每条记录都只对应指令中的具体版本。
 
 ## 构建示例
 

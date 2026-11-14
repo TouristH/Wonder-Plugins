@@ -1,14 +1,15 @@
 name: 收录 Wonder 插件
 description: 机器人自动校验公开仓库与发布包；技术收录不代表人工验证。
 title: '[Plugin] '
-labels: ['plugin-submission']
+labels: ['plugin-submission', 'queued-for-intake']
 body:
   - type: markdown
     attributes:
       value: |
         作者仓库根部须有 _manifest.json，固定 Release ZIP 内须有 plugin.json、入口 DLL、LICENSE、RISK.md 和工具生成的 permissions.json。
         机器人重新分析并核对报告，检查通过后自动提出收录 PR，不要求维护者先批准。
-        所有已收录版本均可下载；维护者完成检查后可在本 Issue 用 /verify 验证具体版本与哈希。
+        本表单会自动加上“等待收录”标签。收录后 Issue 保持打开并显示“等待验证”，所有已收录版本均可下载。
+        维护者可在本 Issue 用 /verify 验证具体版本与哈希。验证记录合并后，机器人标记已验证并关闭 Issue。
   - type: input
     id: repository
     attributes:

@@ -1,7 +1,7 @@
 name: 请求人工验证
 description: 请维护者检查已收录的版本；也可直接在原收录 Issue 中验证。
 title: '[Review] '
-labels: ['review-request']
+labels: ['review-request', 'pending-review']
 body:
   - type: markdown
     attributes:

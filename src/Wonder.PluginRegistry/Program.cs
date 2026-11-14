@@ -15,21 +15,19 @@ try
         case "sync": await Intake.Collect(registry,api); break;
         case "issue":
             var issueEvent = Json.Read(args[1]);
-            if (Json.Text(issueEvent["issue"]!,"title").StartsWith("[Plugin]")) await Intake.Collect(registry,api,issueEvent);
-            else if (Json.Text(issueEvent["issue"]!,"title").StartsWith("[Review]"))
-            {
-                var releases = await registry.Releases();
-                var body = Json.Text(issueEvent["issue"]!,"body");
-                var matches = releases.Where(x => body.Split('\n').Any(line => line.Trim() == Json.Text(x,"id"))).ToArray();
-                if (matches.Length == 0) throw new InvalidDataException("No listed release matches this Review Issue");
-                await api.Comment(registry.RepositoryName,Json.Number(issueEvent["issue"]!,"number"),"供维护者完成源码与行为检查后使用（每个版本独立验证）：\n\n"+string.Join("\n",matches.Select(x => $"`/verify {Json.Text(x,"id")}@g1:{Json.Text(x,"version")} sha256:{Json.Text(x,"sha256")}`")));
-            }
+            if (IssueLabels.IsSubmission(issueEvent["issue"]!)) await Intake.Collect(registry,api,issueEvent);
+            else if (IssueLabels.IsReviewRequest(issueEvent["issue"]!))
+                await Reviews.OpenRequest(registry, api, Json.Number(issueEvent["issue"]!, "number"));
             break;
         case "review":
             var reviewEvent = Json.Read(args[1]);
             if (reviewEvent["action"]?.GetValue<string>() != "created") throw new InvalidDataException("Only newly created comments are accepted");
             await Reviews.Write(registry,api,Json.Number(reviewEvent["comment"]!,"id")); break;
-        case "publish": await Publication.Publish(registry,api); break;
+        case "publish":
+            var issueToken = Environment.GetEnvironmentVariable("REGISTRY_ISSUE_TOKEN");
+            using (var issueApi = issueToken == null ? null : new GitHub(issueToken))
+                await Publication.Publish(registry, api, issueApi);
+            break;
         case "reconcile": await Publication.Reconcile(registry,api); break;
         case "policy":
             var policyEvent = Json.Read(args[1]);

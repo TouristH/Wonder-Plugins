@@ -54,13 +54,23 @@ public static class Policy
             else if (Json.Text(operation,"kind") == "sync" && branch.StartsWith("registry-bot/sync/"))
             {
                 var old = trusted.Records(); var next = candidate.Records();
+                var submittedRepos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var request in operation["issues"]!.AsArray())
+                {
+                    var issue = await api.Get($"/repos/{trusted.RepositoryName}/issues/{request!.GetValue<long>()}");
+                    if (Intake.IsQueued(issue) && Intake.SubmittedRepository(issue) is { } submitted)
+                        submittedRepos.Add(submitted);
+                }
                 foreach (var relative in paths.Where(x => x != "public/v1/index.json"))
                 {
                     if (!relative.StartsWith("registry/plugins/")) throw new InvalidDataException("Sync cannot change reviews");
                     var id = Path.GetFileNameWithoutExtension(relative); var value = next[id];
-                    var canonical = await Intake.Publisher(api,Json.Text(value["repository"]!,"fullName"));
+                    var publisher = Json.Text(value["repository"]!,"fullName");
+                    old.TryGetValue(id, out var prior);
+                    if (prior == null && !submittedRepos.Contains(publisher)) throw new InvalidDataException("A new plugin needs a queued submission Issue");
+                    var canonical = await Intake.Publisher(api,publisher);
                     if (!Json.Equal(canonical,value)) throw new InvalidDataException("Sync differs from publisher manifest");
-                    old.TryGetValue(id,out var prior); await Intake.VerifyUpdate(prior,value,api.Download);
+                    await Intake.VerifyUpdate(prior,value,api.Download);
                 }
                 if (old.Keys.Except(next.Keys).Any()) throw new InvalidDataException("Sync removed history");
             }

@@ -15,15 +15,24 @@
 
 ## GitHub 配置
 
-正式默认分支为 `main`。分支保护要求 PR，并要求 GitHub Actions 的 `policy` 和 `validate` 检查通过；允许合并前刷新分支。开启仓库 auto-merge。
+正式默认分支为 `main`。仓库所有者 TouristH 可以直接推送。机器人数据变更使用 PR，通过 GitHub Actions 的 `policy` 和 `validate` 后自动合并。
 
-专用 GitHub App 仅需安装到中心仓库，授予 Contents 和 Pull requests 写权限。`registry-bot/**` 分支仅允许此 App 写入；App 不应绕过 main 保护。配置：
+专用 GitHub App 仅需安装到中心仓库，授予 Contents 和 Pull requests 写权限。`registry-bot/sync/*` 和 `registry-bot/review/*` 分支仅允许此 App 写入，App 按 main 的合并规则提交变更。配置：
 
 - Variable：`WONDER_REGISTRY_APP_CLIENT_ID`。
 - Secret：`WONDER_REGISTRY_APP_PRIVATE_KEY`。现有安装迁移时暂可沿用 `NYA_REGISTRY_APP_PRIVATE_KEY`，工作流已显式回退读取；勿将私钥写进代码或日志。
 - `repository.json`：真实 `registryBotLogin`、`registryBotId`、`trustedReviewers`、`trustedReviewerIds`。
 
-Issue 模板使用 `plugin-submission`、`queued-for-intake` 与 `review-request` 标签。部署时确保这些标签存在。
+模板为投稿添加 `plugin-submission` 和 `queued-for-intake`，为人工审核请求添加 `review-request` 和 `pending-review`。部署时确保这些标签及以下状态标签存在。
+
+| 进度 | 标签 |
+| --- | --- |
+| 等待收录 → 收录 PR 待合并 → 已收录 | `queued-for-intake` → `pending-merge` → `listed` |
+| 技术校验未通过 | `validation-failed` |
+| 等待人工审核 → 审核 PR 待合并 → 已验证或已撤销 | `pending-review` → `review-pending-merge` → `review-verified` / `review-revoked` |
+| 审核表单需修正 | `review-needs-fix` |
+
+更新状态时保留类型和手工标签。等待收录标签保留到收录 PR 合并，以便失败后重试。只有验证记录合并后，才关闭对应 Issue。
 
 收录工作流先用 GITHUB_TOKEN 读取与反馈请求，技术校验结束后才签发短期 App token 用于发布数据 PR。PR 内容只允许版本事实、审核事件与生成索引，合并后再通知 Issue。源码修改的 PR 验证没有写令牌；policy 始终来自 base。
 
@@ -31,7 +40,7 @@ Issue 模板使用 `plugin-submission`、`queued-for-intake` 与 `review-request
 
 固定共享分析器源码版本在 `.github/actions/setup-registry/action.yml`。更新该版本时重新生成示例报告，按新的版本号发布不同字节的示例 ZIP；不要覆盖已发布 ZIP。具体构建和作者命令见 README、CONTRIBUTING。
 
-自动收录失败后查看 Actions 日志和 Issue 反馈；修复作者清单后重开 Issue 或手动运行 registry。main 前移导致事务发布失败时，以最新 main 重跑收录或评论任务。不要手改已发布版本的哈希来消除错误。
+自动收录失败后查看 Actions 日志和 Issue 反馈。修复后可重提表单，或由维护者给打开的投稿 Issue 重新加上 `queued-for-intake`。仍在排队的请求也可手动运行 registry。main 前移导致事务发布失败时，以最新 main 重跑收录或评论任务。不要手改已发布版本的哈希来消除错误。
 
 人工验证只对精确版本与 SHA-256 有效。审核员离任前先撤销其仍有效的验证，再移除信任配置；已撤销历史保留。新的审核员必须由当前维护者审查配置变更后加入。
 
