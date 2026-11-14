@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         人工验证针对指定版本和 ZIP 哈希，其他版本不会继承。未验证或已撤销的版本仍可下载。
-        只有配置中的可信维护者在 Issue 新增指令评论，才会产生验证记录。
+        机器人核对后会在 Issue 留下验证目标。可信维护者检查后回复 /ap 即可。
   - type: input
     id: plugin
     attributes:
@@ -20,6 +20,13 @@ body:
     attributes:
       label: 插件版本 / Version
       placeholder: '1.0.0'
+    validations:
+      required: true
+  - type: input
+    id: sha256
+    attributes:
+      label: 发布包 SHA-256 / SHA-256
+      description: 填写对应 ZIP 的 64 位小写 SHA-256，可从作者 _manifest.json 对应版本获取。
     validations:
       required: true
   - type: input

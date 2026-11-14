@@ -25,7 +25,8 @@ jobs:
           (github.event.action != 'labeled' || github.event.label.name == 'queued-for-intake')) ||
          (contains(github.event.issue.labels.*.name, 'review-request') && github.event.action != 'labeled'))) ||
        (github.event_name == 'issue_comment' && !github.event.issue.pull_request &&
-        (startsWith(github.event.comment.body, '/verify ') || startsWith(github.event.comment.body, '/revoke-review '))))
+        (github.event.comment.body == '/ap' || startsWith(github.event.comment.body, '/verify ') ||
+         startsWith(github.event.comment.body, '/revoke-review '))))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:

@@ -135,7 +135,8 @@ public static class Publication
                 var issuePath = $"/repos/{registry.RepositoryName}/issues/{id}";
                 var marker = $"<!-- wonder-merged:{Json.Number(pr,"number")} -->";
                 var comments = await api.Pages(issuePath + "/comments");
-                if (comments.Any(x => x["user"]?["type"]?.GetValue<string>() == "Bot" && Json.Text(x,"body").Contains(marker))) continue;
+                var reported = comments.Any(x => x["user"]?["type"]?.GetValue<string>() == "Bot" && Json.Text(x,"body").Contains(marker));
+                if (reported && reviewEvent != null) continue;
                 var issue = await api.Get(issuePath);
                 var verified = reviewEvent != null && Json.Text(reviewEvent, "status") == "verified";
                 if (reviewEvent != null)
@@ -147,9 +148,14 @@ public static class Publication
                 {
                     if (!IssueLabels.IsSubmission(issue)) continue;
                     var publisher = Intake.SubmittedRepository(issue);
-                    if (publisher == null || !operation["plugins"]!.AsArray().Any(plugin => string.Equals(
-                        Json.Text(records[plugin!.GetValue<string>()]["repository"]!, "fullName"), publisher, StringComparison.OrdinalIgnoreCase))) continue;
-                    await Intake.MarkListed(api, registry.RepositoryName, id);
+                    var record = operation["plugins"]!.AsArray().Select(plugin => records[plugin!.GetValue<string>()])
+                        .FirstOrDefault(candidate => string.Equals(Json.Text(candidate["repository"]!, "fullName"),
+                            publisher, StringComparison.OrdinalIgnoreCase));
+                    if (record is null) continue;
+                    if (!reported) await Intake.MarkListed(api, registry.RepositoryName, id);
+                    if (Json.Text(issue, "state") == "open" && !IssueLabels.HasLabel(issue, IssueLabels.Verified))
+                        await Reviews.OfferSubmissionApproval(api, registry.RepositoryName, id, record);
+                    if (reported) continue;
                 }
                 if (verified && Json.Text(issue, "state") == "open")
                     await api.Send("PATCH", issuePath, new JsonObject { ["state"] = "closed", ["state_reason"] = "completed" });
