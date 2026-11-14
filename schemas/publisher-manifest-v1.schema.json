@@ -35,7 +35,10 @@
             "$ref": "plugin-v1.schema.json#/properties/version"
           },
           "apiVersion": {
-            "const": 1
+            "enum": [1, 2]
+          },
+          "configurationSchema": {
+            "$ref": "plugin-v1.schema.json#/$defs/configurationSchema"
           },
           "downloadUrl": {
             "type": "string",

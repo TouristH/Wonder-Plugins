@@ -40,7 +40,7 @@ public static class Intake
         var versions = new HashSet<string>();
         foreach (var release in releases)
         {
-            Json.Fields(release!, ["name","description","author","version","apiVersion","downloadUrl","sha256","size"], "permissions");
+            Json.Fields(release!, ["name","description","author","version","apiVersion","downloadUrl","sha256","size"], "permissions", "configurationSchema");
             release!["id"] = id; release["sourceUrl"] = $"https://github.com/{name}";
             Packages.FixedRelease(release, name);
             if (!versions.Add(Json.Text(release,"version"))) throw new InvalidDataException("Duplicate publisher version");

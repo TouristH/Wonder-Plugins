@@ -33,6 +33,8 @@ public static class Packages
             var result = new JsonObject();
             foreach (var key in Metadata) result[key] = manifest[key]!.DeepClone();
             if (manifest["permissions"] is { } permissions) result["permissions"] = permissions.DeepClone();
+            var configurationSchema = Json.Read(Path.Combine(installed.Directory, "plugin.json"))["configurationSchema"];
+            if (configurationSchema is not null) result["configurationSchema"] = configurationSchema.DeepClone();
             result["size"] = bytes.Length;
             result["sha256"] = Convert.ToHexStringLower(SHA256.HashData(bytes));
             return result;
@@ -41,15 +43,21 @@ public static class Packages
     }
     public static void Match(JsonNode expected, JsonNode actual)
     {
-        foreach (var field in Metadata.Concat(["size", "sha256", "permissions"]))
+        foreach (var field in Metadata.Concat(["size", "sha256", "permissions", "configurationSchema"]))
             if (!Json.Equal(expected[field], actual[field])) throw new InvalidDataException($"Package differs from declared {field}");
     }
     public static void FixedRelease(JsonNode entry, string repository)
     {
-        Json.Fields(entry, Metadata.Concat(["downloadUrl","sha256","size","sourceUrl"]), "permissions");
+        Json.Fields(entry, Metadata.Concat(["downloadUrl","sha256","size","sourceUrl"]), "permissions", "configurationSchema");
         Json.Id(Json.Text(entry, "id")); Json.Version(Json.Text(entry, "version")); Json.Hash(Json.Text(entry, "sha256"));
         Json.Nonempty(entry,"name",256); Json.Nonempty(entry,"description",4096); Json.Nonempty(entry,"author",256);
-        if (Json.Number(entry,"apiVersion") != 1) throw new InvalidDataException("Unsupported plugin API");
+        if (Json.Number(entry,"apiVersion") is not (1 or 2)) throw new InvalidDataException("Unsupported plugin API");
+        if (entry.AsObject().ContainsKey("configurationSchema"))
+        {
+            var schema = entry["configurationSchema"]?.Deserialize<PluginConfigurationSchema>(Json.Options)
+                ?? throw new InvalidDataException("Missing plugin configuration schema");
+            PluginConfiguration.ValidateSchema(schema);
+        }
         if (entry["permissions"] is { } declarations)
         {
             if (declarations is not JsonArray array || array.Count > 64) throw new InvalidDataException("Invalid supplementary declarations");

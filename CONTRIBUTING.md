@@ -4,13 +4,15 @@
 
 | ZIP 根部文件 | 内容 |
 | --- | --- |
-| `plugin.json` | Wonder API v1 清单，描述 ID、版本和入口 |
+| `plugin.json` | Wonder 插件清单，描述 ID、API 版本和入口 |
 | 入口 DLL | .NET 10 插件类库；入口实现 IWonderPlugin |
 | `LICENSE` | 插件许可证；保留依赖的独立许可与通知 |
 | `RISK.md` | 告知插件以系统用户权限运行，分析与人工验证不保证安全 |
 | `permissions.json` | 工具自动生成的文件指纹与行为分析报告 |
 
 附带实际所需依赖，不打包宿主共享的 `Wonder.Extensibility.Contracts.dll`。根文件名区分大小写，ZIP 不带多余顶层目录。示例见 [plugin.json](examples/Wonder.Example.Hello/plugin.json) 与[风险声明](examples/Wonder.Example.Hello/RISK.md)。
+
+仓库接受 `apiVersion` 为 1 或 2 的插件。API 2 插件需使用支持 API 2 的启动器。
 
 公共 ID 使用 `io.github.<GitHub用户名小写>.<插件名>`，最长 80 字符。版本为三个无前导零的非负整数，例如 `1.2.0`。ZIP 不超过 64 MiB，展开后不超过 128 MiB、2048 条目。清单和声明文件不超过 1 MiB。
 
