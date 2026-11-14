@@ -6,7 +6,6 @@ body:
   - type: markdown
     attributes:
       value: |
-        作者仓库根部须有 _manifest.json，固定 Release ZIP 内须有 plugin.json、入口 DLL、LICENSE、RISK.md 和工具生成的 permissions.json。
         机器人重新分析并核对报告，检查通过后自动提出收录 PR，不要求维护者先批准。
         本表单会自动加上“等待收录”标签。收录后 Issue 保持打开并显示“等待验证”，所有已收录版本均可下载。
         维护者可在本 Issue 用 /verify 验证具体版本与哈希。验证记录合并后，机器人标记已验证并关闭 Issue。
@@ -28,9 +27,20 @@ body:
   - type: checkboxes
     id: package
     attributes:
-      label: 发布确认 / Publication
+      label: 提交前确认清单
+      description: 请逐项核对已经发布的文件。生成报告和运行 `check-package` 的命令见[插件发布指南](https://github.com/TouristH/Wonder-Plugins/blob/main/CONTRIBUTING.md)。
       options:
-        - label: 已发布固定版本 ZIP、必要文件和与实际内容一致的自动分析报告。
+        - label: '我有权发布此插件及随包分发的依赖，并已保留它们要求附带的许可证和版权通知。'
           required: true
-        - label: 理解技术收录和人工验证都不是安全保证，插件以当前系统用户权限运行。
+        - label: '作者仓库的默认分支根目录有符合仓库协议的 `_manifest.json`，插件 ID 使用仓库所有者的命名空间。'
+          required: true
+        - label: '`releases` 保留全部已发布版本，每条指向作者仓库固定标签下可公开下载的 Release ZIP。我没有覆盖已有版本的安装包。'
+          required: true
+        - label: 'ZIP 根目录直接包含 `plugin.json`、清单指定的入口 DLL、`LICENSE`、`RISK.md` 和 `permissions.json`，并已附带运行所需的依赖。'
+          required: true
+        - label: '`permissions.json` 由工具根据最终打包目录生成。生成报告后如有修改，我已重新生成并核对。'
+          required: true
+        - label: '我已核对每个 Release ZIP 的精确字节数、64 位小写 SHA-256，以及包内元数据与作者清单是否一致。'
+          required: true
+        - label: '我理解插件以当前系统用户权限运行。自动收录后版本仍会显示为未验证，维护者验证也不构成安全保证。'
           required: true
