@@ -2,7 +2,7 @@
 
 ## 作者清单
 
-仓库根 `_manifest.json` 使用 `schemaVersion: 1`，`id` 属于作者名空间，`releases` 保存全部发布版本。每个版本的元数据与包内清单一致；可选 `permissions` 仅为作者补充，同样必须一致。
+仓库根 `_manifest.json` 使用 `schemaVersion: 1`，`id` 属于作者名空间，`releases` 保存全部发布版本。每个版本的元数据与包内清单一致；`apiVersion` 可为 1 或 2。包内若有 `configurationSchema`，也须原样写入对应的 release，由索引传给启动器。可选 `permissions` 仅为作者补充，同样必须一致。
 
 ```json
 {

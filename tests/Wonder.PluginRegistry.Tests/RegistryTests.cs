@@ -19,12 +19,12 @@ public sealed class RegistryTests : IDisposable
         Json.Write(registry.PathFor("catalog/plugins.json"),new JsonArray());
         Json.Write(registry.PathFor("repository.json"),Json.Parse("""{"sourceUrl":"https://github.com/example/registry","registryBotLogin":"test[bot]","registryBotId":55,"trustedReviewers":["maintainer"],"trustedReviewerIds":{"maintainer":42}}"""));
     }
-    private byte[] Package(string version="1.0.0", bool report=true, bool tamper=false, string? entryType=null, bool badEntry=false)
+    private byte[] Package(string version="1.0.0", bool report=true, bool tamper=false, string? entryType=null, bool badEntry=false, int apiVersion=1, PluginConfigurationSchema? configurationSchema=null)
     {
         var folder = Path.Combine(root,Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
         File.Copy(typeof(PackageProbe).Assembly.Location,Path.Combine(folder,"plugin.dll"));
         if (badEntry) File.WriteAllText(Path.Combine(folder,"plugin.dll"),"MZ invalid assembly");
-        File.WriteAllText(Path.Combine(folder,"plugin.json"),JsonSerializer.Serialize(new PluginManifest { Id=Id,Name="Test",Description="Test package",Author="Example",Version=version,ApiVersion=1,EntryAssembly="plugin.dll",EntryType=entryType ?? typeof(PackageProbe).FullName! },Json.Options));
+        File.WriteAllText(Path.Combine(folder,"plugin.json"),JsonSerializer.Serialize(new PluginManifest { Id=Id,Name="Test",Description="Test package",Author="Example",Version=version,ApiVersion=apiVersion,ConfigurationSchema=configurationSchema,EntryAssembly="plugin.dll",EntryType=entryType ?? typeof(PackageProbe).FullName! },Json.Options));
         File.WriteAllText(Path.Combine(folder,"LICENSE"),"MIT test fixture"); File.WriteAllText(Path.Combine(folder,"RISK.md"),"Full trust. Static analysis is not a safety guarantee.");
         if (report) PluginPackageReport.Write(folder);
         if (tamper) File.WriteAllText(Path.Combine(folder,"RISK.md"),"changed after reporting");
@@ -44,6 +44,36 @@ public sealed class RegistryTests : IDisposable
         var entry=await Entry(Package());entry["review"]=new JsonObject{["status"]="verified"};
         Assert.Throws<InvalidDataException>(()=>Packages.FixedRelease(entry,"example/toolbox"));
     }
+    [Fact]
+    public async Task ApiTwoConfigurationSurvivesIntakeAndIndexAndMustMatchThePackage()
+    {
+        const string configuration = """
+            {"fields":[{"key":"greeting","label":"Greeting","default":"Hello","maxLength":120}]}
+            """;
+        var bytes = Package(apiVersion: 2, configurationSchema: JsonSerializer.Deserialize<PluginConfigurationSchema>(configuration, Json.Options));
+        var entry = await Entry(bytes);
+
+        var publisherEntry = entry.DeepClone();
+        foreach (var key in new[] { "id", "sourceUrl" }) publisherEntry.AsObject().Remove(key);
+        var manifest = new JsonObject { ["schemaVersion"] = 1, ["id"] = Id, ["releases"] = new JsonArray(publisherEntry) };
+        var content = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(manifest.ToJsonString()));
+        using var api = new GitHub(null, new Reply(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/repos/example/toolbox" => Json.Parse("""{"full_name":"example/toolbox","default_branch":"main","private":false,"fork":false,"archived":false,"id":10,"owner":{"id":20,"login":"example"}}"""),
+            "/repos/example/toolbox/commits/main" => Json.Parse("""{"sha":"abc"}"""),
+            "/repos/example/toolbox/contents/_manifest.json" => new JsonObject { ["size"] = content.Length, ["type"] = "file", ["encoding"] = "base64", ["content"] = content },
+            _ => throw new InvalidOperationException(request.RequestUri.AbsolutePath)
+        }));
+        var publisher = await Intake.Publisher(api, "example/toolbox");
+        await Intake.VerifyUpdate(null, publisher, (_, _) => Task.FromResult(bytes));
+        Json.Write(registry.PathFor($"registry/plugins/{Id}.json"), publisher);
+        var indexed = (await registry.BuildIndex())["plugins"]![0]!;
+        Assert.Equal(2, Json.Number(indexed, "apiVersion"));
+        Assert.Equal("Hello", indexed["configurationSchema"]!["fields"]![0]!["default"]!.GetValue<string>());
+        publisher["releases"]![0]!["configurationSchema"]!["fields"]![0]!["default"] = "Changed";
+        await Assert.ThrowsAsync<InvalidDataException>(() => Intake.VerifyUpdate(null, publisher, (_, _) => Task.FromResult(bytes)));
+    }
+
     [Fact] public void QueueRotationEventuallyVisitsEveryOpenIssue()
     {
         var issues=Enumerable.Range(0,200).ToArray();
