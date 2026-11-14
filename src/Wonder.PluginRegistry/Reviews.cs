@@ -10,16 +10,24 @@ public static class Reviews
 {
     private const long GitHubActionsBotId = 41898282;
 
-    internal static string ApprovalPrompt(JsonNode entry) =>
-        $"验证目标：`{Json.Text(entry, "id")}@g1:{Json.Text(entry, "version")} sha256:{Json.Text(entry, "sha256")}`\n\n请维护者检查此版本后在本 Issue 发送 `/ap`。";
+    internal static string PackageIdentity(JsonNode entry) =>
+        $"{Json.Text(entry, "id")}@g1:{Json.Text(entry, "version")} sha256:{Json.Text(entry, "sha256")}";
+
+    private static string ApprovalPrompt(JsonNode entry) =>
+        $"验证目标：`{PackageIdentity(entry)}`\n\n请维护者核对对应源码、构建方式、依赖及实际行为，确认后发送 `/ap`。";
 
     internal static async Task OfferSubmissionApproval(GitHub api, string repository, long issue, JsonNode record)
     {
         var releases = record["releases"]!.AsArray();
-        if (releases.Count == 1)
-            await api.CommentOnce(repository, issue, ApprovalPrompt(releases[0]!));
-        else
-            await api.CommentOnce(repository, issue, "此次投稿涉及多个版本。请用“请求人工验证”表单指定一个版本和它的 SHA-256。");
+        var details = string.Join("\n", releases.Select(entry =>
+            $"- `{PackageIdentity(entry!)}` · {Json.Number(entry!, "size")} 字节"));
+        var next = releases.Count == 1 ? ApprovalPrompt(releases[0]!) :
+            "此次投稿涉及多个版本。请用“请求人工验证”表单指定一个版本和它的 SHA-256。";
+        await api.CommentOnce(repository, issue, "### 自动技术校验通过\n\n" +
+            "- 核对了发布者仓库、默认分支清单和固定标签 Release ZIP。\n" +
+            "- 核对了 ZIP 字节数、SHA-256、必需文件、入口及包内清单。\n" +
+            "- 重新生成权限报告，并核对包内报告与文件指纹、分析结果是否一致。\n\n" +
+            details + "\n\n" + next);
     }
 
     public static async Task OpenRequest(Registry registry, GitHub api, long issueNumber)
@@ -39,7 +47,8 @@ public static class Reviews
             return;
         }
         await IssueLabels.Set(api, repository, issueNumber, IssueLabels.PendingReview);
-        await api.CommentOnce(repository, issueNumber, ApprovalPrompt(entry));
+        await api.CommentOnce(repository, issueNumber,
+            "验证申请已匹配公开索引中的版本和 SHA-256。\n\n" + ApprovalPrompt(entry));
     }
 
     private static bool MatchesRequestedRelease(string body, JsonNode release) =>

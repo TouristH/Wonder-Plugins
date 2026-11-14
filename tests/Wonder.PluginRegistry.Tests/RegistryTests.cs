@@ -291,7 +291,16 @@ public sealed class RegistryTests : IDisposable
                 closes++;
                 return new JsonObject();
             }
-            if(request.Method==HttpMethod.Post) {posts++;return new JsonObject();}
+            if(request.Method==HttpMethod.Post)
+            {
+                var body = Json.Text(Json.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()), "body");
+                Assert.Contains("人工验证通过", body);
+                Assert.Contains("sha256:" + Json.Text(entry, "sha256"), body);
+                Assert.Contains("维护者：@maintainer", body);
+                Assert.Contains("指令时间：2026-01-01T00:00:00Z", body);
+                posts++;
+                return new JsonObject();
+            }
             return new JsonArray();
         }));
         await Publication.Reconcile(registry,landedApi);Assert.Equal(1,posts);Assert.Equal(1,closes);
@@ -338,7 +347,8 @@ public sealed class RegistryTests : IDisposable
         }));
         await Publication.Reconcile(registry, api);
         Assert.Equal(new[] { IssueLabels.Listed, IssueLabels.PendingReview }, addedLabels);
-        Assert.Contains(postedBodies, body => body.Contains("sha256:" + Json.Text(entry, "sha256")) && body.Contains("/ap"));
+        Assert.Contains(postedBodies, body => body.Contains("sha256:" + Json.Text(entry, "sha256")) &&
+            body.Contains("重新生成权限报告") && body.Contains("/ap"));
     }
     private static JsonNode ReviewComment(JsonNode entry,long id,string action) => Json.Parse($$"""{"id":{{id}},"body":"/{{action}} {{Id}}@g1:1.0.0 sha256:{{Json.Text(entry,"sha256")}} reason","user":{"login":"maintainer","id":42},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","issue_url":"https://api.github.com/repos/example/registry/issues/1"}""");
     private static GitHub ReviewApi(JsonNode comment) => new(null,new Reply(request=>request.RequestUri!.AbsolutePath.EndsWith("comments/"+Json.Number(comment,"id")) ? comment : request.RequestUri.AbsolutePath.EndsWith("/comments") ? new JsonArray(comment.DeepClone()) : SubmissionIssue()));
