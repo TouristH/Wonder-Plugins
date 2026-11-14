@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.touristh.hellowonder",
+  "generation": 1,
+  "version": "2.0.0",
+  "sha256": "e2223da4269be400b35e49d7743cbdea6103d199ab8c36d7d6bf85fe30e34544",
+  "events": [
+    {
+      "commentId": 6877190945,
+      "issueNumber": 17,
+      "reviewer": "TouristH",
+      "reviewerId": 143396778,
+      "status": "verified",
+      "createdAt": "2026-11-14T12:21:38Z",
+      "note": ""
+    }
+  ]
+}

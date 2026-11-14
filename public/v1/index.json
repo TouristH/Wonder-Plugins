@@ -24,7 +24,13 @@
         ]
       },
       "id": "io.github.touristh.hellowonder",
-      "sourceUrl": "https://github.com/TouristH/HelloWonder"
+      "sourceUrl": "https://github.com/TouristH/HelloWonder",
+      "review": {
+        "status": "verified",
+        "reviewer": "TouristH",
+        "reviewedAt": "2026-11-14T12:21:38Z",
+        "sha256": "e2223da4269be400b35e49d7743cbdea6103d199ab8c36d7d6bf85fe30e34544"
+      }
     }
   ]
 }
