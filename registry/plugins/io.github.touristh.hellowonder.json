@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.touristh.hellowonder",
+  "generation": 1,
+  "repository": {
+    "fullName": "TouristH/HelloWonder",
+    "id": 1457690728,
+    "ownerId": 143396778
+  },
+  "releases": [
+    {
+      "name": "HelloWonder",
+      "description": "\u542F\u7528\u540E\u5728 Wonder \u684C\u9762\u663E\u793A\u95EE\u5019\u5361\u7247\uFF0C\u53EF\u5728\u63D2\u4EF6\u8BBE\u7F6E\u4E2D\u4FEE\u6539\u95EE\u5019\u8BED\u3002",
+      "author": "Wonder Launcher contributors",
+      "version": "2.0.0",
+      "apiVersion": 2,
+      "downloadUrl": "https://github.com/TouristH/HelloWonder/releases/download/v2.0.0/io.github.touristh.hellowonder-2.0.0.zip",
+      "sha256": "e2223da4269be400b35e49d7743cbdea6103d199ab8c36d7d6bf85fe30e34544",
+      "size": 24416,
+      "configurationSchema": {
+        "version": 1,
+        "fields": [
+          {
+            "key": "greeting",
+            "label": "\u95EE\u5019\u8BED",
+            "type": "string",
+            "default": "Hello, Wonder!",
+            "maxLength": 120
+          }
+        ]
+      },
+      "id": "io.github.touristh.hellowonder",
+      "sourceUrl": "https://github.com/TouristH/HelloWonder"
+    }
+  ]
+}
