@@ -136,6 +136,59 @@ public sealed class RegistryTests : IDisposable
         var history=await Reviews.Apply(registry,api,101,(_,_)=>Task.FromResult(bytes));Assert.Equal("verified",Json.Text(history["events"]![0]!,"status"));
         comment["user"]!["id"]=43;await Assert.ThrowsAsync<InvalidDataException>(()=>Reviews.Apply(registry,api,101,(_,_)=>Task.FromResult(bytes)));
     }
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShortApprovalVerifiesOnlyTheBoundPackage(bool reviewRequest)
+    {
+        var bytes = Package();
+        var entry = await Entry(bytes);
+        Json.Write(registry.PathFor($"registry/plugins/{Id}.json"), Record(entry));
+        var hash = Json.Text(entry, "sha256");
+        var issue = SubmissionIssue();
+        if (reviewRequest)
+        {
+            issue["title"] = "[Review] Toolbox";
+            issue["labels"] = new JsonArray(new JsonObject { ["name"] = "review-request" });
+            issue["body"] = $"### 插件 ID / Plugin ID\n\n{Id}\n\n### 插件版本 / Version\n\n1.0.0\n\n### 发布包 SHA-256 / SHA-256\n\n{hash}";
+        }
+        var command = ReviewComment(entry, 102, "verify");
+        command["body"] = "/ap";
+        var target = ReviewComment(entry, 101, "verify");
+        target["body"] = $"验证目标：`{Id}@g1:1.0.0 sha256:{hash}`\n\n请维护者检查此版本后在本 Issue 发送 `/ap`。";
+        target["user"] = Json.Parse("""{"login":"github-actions[bot]","id":41898282,"type":"Bot"}""");
+        var comments = new JsonArray(target, command);
+        using var api = new GitHub(null, new Reply(request => request.RequestUri!.AbsolutePath switch
+        {
+            "/repos/example/registry/issues/comments/102" => command,
+            "/repos/example/registry/issues/1/comments" => comments,
+            _ => issue
+        }));
+        var history = await Reviews.Apply(registry, api, 102, (_, _) => Task.FromResult(bytes));
+        Assert.Equal(hash, Json.Text(history, "sha256"));
+        Assert.Equal("verified", Json.Text(history["events"]![0]!, "status"));
+
+        var ambiguous = target.DeepClone();
+        ambiguous["id"] = 100;
+        ambiguous["body"] = Json.Text(target, "body").Replace("@g1:1.0.0", "@g1:2.0.0");
+        comments.Add(ambiguous);
+        await Assert.ThrowsAsync<InvalidDataException>(() => Reviews.Apply(registry, api, 102));
+        comments.Remove(ambiguous);
+
+        if (reviewRequest)
+        {
+            var originalBody = Json.Text(issue, "body");
+            issue["body"] = originalBody.Replace(hash, new string('a', 64));
+            await Assert.ThrowsAsync<InvalidDataException>(() => Reviews.Apply(registry, api, 102));
+            issue["body"] = originalBody;
+        }
+        target["id"] = 103;
+        await Assert.ThrowsAsync<InvalidDataException>(() => Reviews.Apply(registry, api, 102));
+        target["id"] = 101;
+        target["user"]!["id"] = 42;
+        await Assert.ThrowsAsync<InvalidDataException>(() => Reviews.Apply(registry, api, 102));
+    }
+
     [Fact] public async Task DelayedVerifyCannotOverwriteNewerRevocation()
     {
         var bytes=Package();var entry=await Entry(bytes);Json.Write(registry.PathFor($"registry/plugins/{Id}.json"),Record(entry));
@@ -238,7 +291,16 @@ public sealed class RegistryTests : IDisposable
                 closes++;
                 return new JsonObject();
             }
-            if(request.Method==HttpMethod.Post) {posts++;return new JsonObject();}
+            if(request.Method==HttpMethod.Post)
+            {
+                var body = Json.Text(Json.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()), "body");
+                Assert.Contains("人工验证通过", body);
+                Assert.Contains("sha256:" + Json.Text(entry, "sha256"), body);
+                Assert.Contains("维护者：@maintainer", body);
+                Assert.Contains("指令时间：2026-01-01T00:00:00Z", body);
+                posts++;
+                return new JsonObject();
+            }
             return new JsonArray();
         }));
         await Publication.Reconcile(registry,landedApi);Assert.Equal(1,posts);Assert.Equal(1,closes);
@@ -258,6 +320,7 @@ public sealed class RegistryTests : IDisposable
         Json.Write(registry.PathFor($"registry/plugins/{Id}.json"), Record(entry));
         var pr = MergedPr(new JsonObject { ["kind"] = "sync", ["plugins"] = new JsonArray(Id), ["issues"] = new JsonArray(1L) }, 7, "registry-bot/sync/abc");
         var addedLabels = new List<string>();
+        var postedBodies = new List<string>();
         using var api = new GitHub(null, new Reply(request =>
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -274,11 +337,18 @@ public sealed class RegistryTests : IDisposable
                 addedLabels.Add(body["labels"]!.AsArray().Single()!.GetValue<string>());
                 return new JsonArray();
             }
-            if (path.EndsWith("/comments")) return new JsonArray();
+            if (path.EndsWith("/comments"))
+            {
+                if (request.Method == HttpMethod.Post)
+                    postedBodies.Add(Json.Text(Json.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult()), "body"));
+                return new JsonArray();
+            }
             throw new InvalidOperationException($"Unexpected request: {request.Method} {path}");
         }));
         await Publication.Reconcile(registry, api);
         Assert.Equal(new[] { IssueLabels.Listed, IssueLabels.PendingReview }, addedLabels);
+        Assert.Contains(postedBodies, body => body.Contains("sha256:" + Json.Text(entry, "sha256")) &&
+            body.Contains("重新生成权限报告") && body.Contains("/ap"));
     }
     private static JsonNode ReviewComment(JsonNode entry,long id,string action) => Json.Parse($$"""{"id":{{id}},"body":"/{{action}} {{Id}}@g1:1.0.0 sha256:{{Json.Text(entry,"sha256")}} reason","user":{"login":"maintainer","id":42},"created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z","issue_url":"https://api.github.com/repos/example/registry/issues/1"}""");
     private static GitHub ReviewApi(JsonNode comment) => new(null,new Reply(request=>request.RequestUri!.AbsolutePath.EndsWith("comments/"+Json.Number(comment,"id")) ? comment : request.RequestUri.AbsolutePath.EndsWith("/comments") ? new JsonArray(comment.DeepClone()) : SubmissionIssue()));

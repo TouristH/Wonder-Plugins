@@ -37,10 +37,11 @@ dotnet src/Wonder.PluginRegistry/bin/Release/net10.0/Wonder.PluginRegistry.dll c
 
 ## 人工验证
 
-收录后默认未验证。维护者检查后，在原投稿 Issue 或 Review Issue 新发带精确哈希的命令：
+收录后默认未验证。单版本的原投稿 Issue 会收到机器人发布的插件 ID、精确版本和 SHA-256。涉及多个版本时，用 **请求人工验证** 表单分别填写目标版本和 SHA-256。等机器人公布唯一验证目标后，维护者完成检查并单独回复 `/ap`。
+
+撤销时仍需指定版本、哈希和理由。
 
 ```text
-/verify io.github.example.toolbox@g1:1.0.0 sha256:<64位小写SHA-256> 检查说明
 /revoke-review io.github.example.toolbox@g1:1.0.0 sha256:<64位小写SHA-256> 撤销原因
 ```
 

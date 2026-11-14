@@ -136,7 +136,7 @@ public static class Intake
                 foreach (var issue in requestIds)
                 {
                     await MarkListed(api, repository, issue);
-                    await api.CommentOnce(repository, issue, "该插件已收录。维护者可对具体版本执行人工验证：\n\n" + Commands(next));
+                    await Reviews.OfferSubmissionApproval(api, repository, issue, next);
                 }
                 continue;
             }
@@ -164,5 +164,4 @@ public static class Intake
         await IssueLabels.Set(api, repository, issue, IssueLabels.PendingReview, onlyIfReviewUnset: true);
     }
 
-    public static string Commands(JsonNode record) => string.Join("\n",record["releases"]!.AsArray().Select(x=>$"`/verify {Json.Text(x!,"id")}@g1:{Json.Text(x!,"version")} sha256:{Json.Text(x!,"sha256")}`"));
 }

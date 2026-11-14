@@ -116,11 +116,13 @@ public static class Publication
             JsonNode operation; try { operation = Operation(pr); } catch (InvalidDataException) { continue; }
             var kind = Json.Text(operation,"kind"); var branch = Json.Text(pr["head"]!,"ref");
             JsonNode? reviewEvent = null;
+            JsonNode? reviewHistory = null;
             if (kind == "review")
             {
                 var commentId = Json.Number(operation,"commentId"); var relative = Json.Text(operation,"path");
                 var history = histories.FirstOrDefault(item => Reviews.Relative(item) == relative);
                 if (branch != $"registry-bot/review/{commentId}" || history == null) continue;
+                reviewHistory = history;
                 reviewEvent = history["events"]!.AsArray().LastOrDefault();
                 if (reviewEvent == null || Json.Number(reviewEvent, "commentId") != commentId) continue;
                 if (latestIssueReviews[Json.Number(reviewEvent, "issueNumber")] != commentId) continue;
@@ -135,7 +137,8 @@ public static class Publication
                 var issuePath = $"/repos/{registry.RepositoryName}/issues/{id}";
                 var marker = $"<!-- wonder-merged:{Json.Number(pr,"number")} -->";
                 var comments = await api.Pages(issuePath + "/comments");
-                if (comments.Any(x => x["user"]?["type"]?.GetValue<string>() == "Bot" && Json.Text(x,"body").Contains(marker))) continue;
+                var reported = comments.Any(x => x["user"]?["type"]?.GetValue<string>() == "Bot" && Json.Text(x,"body").Contains(marker));
+                if (reported && reviewEvent != null) continue;
                 var issue = await api.Get(issuePath);
                 var verified = reviewEvent != null && Json.Text(reviewEvent, "status") == "verified";
                 if (reviewEvent != null)
@@ -147,14 +150,30 @@ public static class Publication
                 {
                     if (!IssueLabels.IsSubmission(issue)) continue;
                     var publisher = Intake.SubmittedRepository(issue);
-                    if (publisher == null || !operation["plugins"]!.AsArray().Any(plugin => string.Equals(
-                        Json.Text(records[plugin!.GetValue<string>()]["repository"]!, "fullName"), publisher, StringComparison.OrdinalIgnoreCase))) continue;
-                    await Intake.MarkListed(api, registry.RepositoryName, id);
+                    var record = operation["plugins"]!.AsArray().Select(plugin => records[plugin!.GetValue<string>()])
+                        .FirstOrDefault(candidate => string.Equals(Json.Text(candidate["repository"]!, "fullName"),
+                            publisher, StringComparison.OrdinalIgnoreCase));
+                    if (record is null) continue;
+                    if (!reported) await Intake.MarkListed(api, registry.RepositoryName, id);
+                    if (Json.Text(issue, "state") == "open" && !IssueLabels.HasLabel(issue, IssueLabels.Verified))
+                        await Reviews.OfferSubmissionApproval(api, registry.RepositoryName, id, record);
+                    if (reported) continue;
                 }
                 if (verified && Json.Text(issue, "state") == "open")
                     await api.Send("PATCH", issuePath, new JsonObject { ["state"] = "closed", ["state_reason"] = "completed" });
-                var status = reviewEvent == null ? "插件已收录，Issue 保持打开，等待维护者验证。" :
-                    verified ? "该版本的人工验证已合并，Issue 已关闭。" : "该版本的人工验证已撤销，下载仍可用。";
+                var status = "插件已收录，Issue 保持打开，等待维护者验证。";
+                if (reviewEvent != null)
+                {
+                    var title = verified ? "人工验证通过" : "人工验证已撤销";
+                    status = $"### {title}\n\n" +
+                        $"- 发布包：`{Reviews.PackageIdentity(reviewHistory!)}`\n" +
+                        $"- 维护者：@{Json.Text(reviewEvent, "reviewer")}\n" +
+                        $"- 指令时间：{Json.Text(reviewEvent, "createdAt")}\n" +
+                        $"- [维护者指令](https://github.com/{registry.RepositoryName}/issues/{id}#issuecomment-{Json.Number(reviewEvent, "commentId")})";
+                    if (Json.Text(reviewEvent, "note") is { Length: > 0 } note)
+                        status += "\n- 维护者备注：" + note;
+                    status += verified ? "\n\n验证记录已写入索引，Issue 已关闭。" : "\n\n撤销记录已写入索引，仍可下载。";
+                }
                 await api.Comment(registry.RepositoryName, id, $"{status}\n\n{Json.Text(pr,"html_url")}\n\n{marker}");
             }
         }
